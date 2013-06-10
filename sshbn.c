@@ -148,7 +148,7 @@ void freebn(Bignum b)
     /*
      * Burn the evidence, just in case.
      */
-    memset(b, 0, sizeof(b[0]) * (b[0] + 1));
+    smemclr(b, sizeof(b[0]) * (b[0] + 1));
     sfree(b);
 }
 
@@ -1761,7 +1761,7 @@ char *bignum_decimal(Bignum x)
 #include <ctype.h>
 
 /*
- * gcc -g -O0 -DTESTBN -o testbn sshbn.c misc.c -I unix -I charset
+ * gcc -Wall -g -O0 -DTESTBN -o testbn sshbn.c misc.c conf.c tree234.c unix/uxmisc.c -I. -I unix -I charset
  *
  * Then feed to this program's standard input the output of
  * testdata/bignum.py .
@@ -1835,7 +1835,7 @@ int main(int argc, char **argv)
             Bignum a, b, c, p;
 
             if (ptrnum != 3) {
-                printf("%d: mul with %d parameters, expected 3\n", line);
+                printf("%d: mul with %d parameters, expected 3\n", line, ptrnum);
                 exit(1);
             }
             a = bignum_from_bytes(ptrs[0], ptrs[1]-ptrs[0]);
@@ -1868,7 +1868,7 @@ int main(int argc, char **argv)
             Bignum base, expt, modulus, expected, answer;
 
             if (ptrnum != 4) {
-                printf("%d: mul with %d parameters, expected 3\n", line);
+                printf("%d: mul with %d parameters, expected 4\n", line, ptrnum);
                 exit(1);
             }
 

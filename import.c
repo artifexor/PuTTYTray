@@ -321,7 +321,7 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
 					    const char **errmsg_p)
 {
     struct openssh_key *ret;
-    FILE *fp;
+    FILE *fp = NULL;
     char *line = NULL;
     char *errmsg, *p;
     int headers_done;
@@ -334,7 +334,7 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
     ret->encrypted = 0;
     memset(ret->iv, 0, sizeof(ret->iv));
 
-    fp = f_open(*filename, "r", FALSE);
+    fp = f_open(filename, "r", FALSE);
     if (!fp) {
 	errmsg = "unable to open key file";
 	goto error;
@@ -358,7 +358,7 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
 	errmsg = "unrecognised key type";
 	goto error;
     }
-    memset(line, 0, strlen(line));
+    smemclr(line, strlen(line));
     sfree(line);
     line = NULL;
 
@@ -442,16 +442,19 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
                     memcpy(ret->keyblob + ret->keyblob_len, out, len);
                     ret->keyblob_len += len;
 
-                    memset(out, 0, sizeof(out));
+                    smemclr(out, sizeof(out));
                 }
 
 		p++;
 	    }
 	}
-	memset(line, 0, strlen(line));
+	smemclr(line, strlen(line));
 	sfree(line);
 	line = NULL;
     }
+
+    fclose(fp);
+    fp = NULL;
 
     if (ret->keyblob_len == 0 || !ret->keyblob) {
 	errmsg = "key body not present";
@@ -463,26 +466,27 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
 	goto error;
     }
 
-    memset(base64_bit, 0, sizeof(base64_bit));
+    smemclr(base64_bit, sizeof(base64_bit));
     if (errmsg_p) *errmsg_p = NULL;
     return ret;
 
     error:
     if (line) {
-	memset(line, 0, strlen(line));
+	smemclr(line, strlen(line));
 	sfree(line);
 	line = NULL;
     }
-    memset(base64_bit, 0, sizeof(base64_bit));
+    smemclr(base64_bit, sizeof(base64_bit));
     if (ret) {
 	if (ret->keyblob) {
-            memset(ret->keyblob, 0, ret->keyblob_size);
+            smemclr(ret->keyblob, ret->keyblob_size);
             sfree(ret->keyblob);
         }
-        memset(ret, 0, sizeof(*ret));
+        smemclr(ret, sizeof(*ret));
 	sfree(ret);
     }
     if (errmsg_p) *errmsg_p = errmsg;
+    if (fp) fclose(fp);
     return NULL;
 }
 
@@ -494,11 +498,28 @@ int openssh_encrypted(const Filename *filename)
     if (!key)
 	return 0;
     ret = key->encrypted;
-    memset(key->keyblob, 0, key->keyblob_size);
+    smemclr(key->keyblob, key->keyblob_size);
     sfree(key->keyblob);
-    memset(key, 0, sizeof(*key));
+    smemclr(key, sizeof(*key));
     sfree(key);
     return ret;
+}
+
+char *comment_for(const Filename *filename) {
+    const size_t target_len = 24;
+    const char *prefix = "openssh: ";
+    const char *path = filename_to_str(filename);
+    const size_t len = strlen(path);
+    const size_t avail = target_len - strlen(prefix) - strlen("...");
+    char *str = snewn(target_len + 1, char);
+    strcpy(str, prefix);
+    if (len < avail)
+        strcat(str, path);
+    else {
+        strcat(str, "...");
+        strcat(str, path + len - avail);
+    }
+    return str;
 }
 
 struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
@@ -564,8 +585,8 @@ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
 	    aes_free_context(ctx);
 	}
 
-        memset(&md5c, 0, sizeof(md5c));
-        memset(keybuf, 0, sizeof(keybuf));
+        smemclr(&md5c, sizeof(md5c));
+        smemclr(keybuf, sizeof(keybuf));
     }
 
     /*
@@ -588,12 +609,13 @@ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
     
     p = key->keyblob;
 
-    /* Expect the SEQUENCE header. Take its absence as a failure to decrypt. */
+    /* Expect the SEQUENCE header. Take its absence as a failure to
+     * decrypt, if the key was encrypted. */
     ret = ber_read_id_len(p, key->keyblob_len, &id, &len, &flags);
     p += ret;
     if (ret < 0 || id != 16) {
 	errmsg = "ASN.1 decoding failure";
-	retval = SSH2_WRONG_PASSPHRASE;
+        retval = key->encrypted ? SSH2_WRONG_PASSPHRASE : NULL;
 	goto error;
     }
 
@@ -625,7 +647,7 @@ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
 	if (ret < 0 || id != 2 ||
 	    key->keyblob+key->keyblob_len-p < len) {
 	    errmsg = "ASN.1 decoding failure";
-	    retval = SSH2_WRONG_PASSPHRASE;
+	    retval = key->encrypted ? SSH2_WRONG_PASSPHRASE : NULL;
 	    goto error;
 	}
 
@@ -692,18 +714,18 @@ struct ssh2_userkey *openssh_read(const Filename *filename, char *passphrase,
 	goto error;
     }
 
-    retkey->comment = dupstr("imported-openssh-key");
+    retkey->comment = comment_for(filename);
     errmsg = NULL;                     /* no error */
     retval = retkey;
 
     error:
     if (blob) {
-        memset(blob, 0, blobsize);
+        smemclr(blob, blobsize);
         sfree(blob);
     }
-    memset(key->keyblob, 0, key->keyblob_size);
+    smemclr(key->keyblob, key->keyblob_size);
     sfree(key->keyblob);
-    memset(key, 0, sizeof(*key));
+    smemclr(key, sizeof(*key));
     sfree(key);
     if (errmsg_p) *errmsg_p = errmsg;
     return retval;
@@ -911,15 +933,15 @@ int openssh_write(const Filename *filename, struct ssh2_userkey *key,
 	 */
 	des3_encrypt_pubkey_ossh(keybuf, iv, outblob, outlen);
 
-        memset(&md5c, 0, sizeof(md5c));
-        memset(keybuf, 0, sizeof(keybuf));
+        smemclr(&md5c, sizeof(md5c));
+        smemclr(keybuf, sizeof(keybuf));
     }
 
     /*
      * And save it. We'll use Unix line endings just in case it's
      * subsequently transferred in binary mode.
      */
-    fp = f_open(*filename, "wb", TRUE);      /* ensure Unix line endings */
+    fp = f_open(filename, "wb", TRUE);      /* ensure Unix line endings */
     if (!fp)
 	goto error;
     fputs(header, fp);
@@ -936,22 +958,47 @@ int openssh_write(const Filename *filename, struct ssh2_userkey *key,
 
     error:
     if (outblob) {
-        memset(outblob, 0, outlen);
+        smemclr(outblob, outlen);
         sfree(outblob);
     }
     if (spareblob) {
-        memset(spareblob, 0, sparelen);
+        smemclr(spareblob, sparelen);
         sfree(spareblob);
     }
     if (privblob) {
-        memset(privblob, 0, privlen);
+        smemclr(privblob, privlen);
         sfree(privblob);
     }
     if (pubblob) {
-        memset(pubblob, 0, publen);
+        smemclr(pubblob, publen);
         sfree(pubblob);
     }
     return ret;
+}
+
+char *openssh_to_pubkey(struct ssh2_userkey *key) {
+    unsigned char *pub_blob;
+    char *buffer, *p;
+    int pub_len;
+    int i;
+
+    pub_blob = key->alg->public_blob(key->data, &pub_len);
+    buffer = snewn(strlen(key->alg->name) + 4 * ((pub_len + 2) / 3) +
+		   strlen(key->comment) + 3, char);
+    strcpy(buffer, key->alg->name);
+    p = buffer + strlen(buffer);
+    *p++ = ' ';
+    i = 0;
+    while (i < pub_len) {
+	int n = (pub_len - i < 3 ? pub_len - i : 3);
+	base64_encode_atom(pub_blob + i, n, p);
+	i += n;
+	p += 4;
+    }
+    *p++ = ' ';
+    strcpy(p, key->comment);
+    sfree(pub_blob);
+    return buffer;
 }
 
 /* ----------------------------------------------------------------------
@@ -1053,7 +1100,7 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
     ret->keyblob = NULL;
     ret->keyblob_len = ret->keyblob_size = 0;
 
-    fp = f_open(*filename, "r", FALSE);
+    fp = f_open(filename, "r", FALSE);
     if (!fp) {
 	errmsg = "unable to open key file";
 	goto error;
@@ -1067,7 +1114,7 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 	errmsg = "file does not begin with ssh.com key header";
 	goto error;
     }
-    memset(line, 0, strlen(line));
+    smemclr(line, strlen(line));
     sfree(line);
     line = NULL;
 
@@ -1112,7 +1159,7 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 		len += line2len - 1;
 		assert(!line[len]);
 
-		memset(line2, 0, strlen(line2));
+		smemclr(line2, strlen(line2));
 		sfree(line2);
 		line2 = NULL;
             }
@@ -1158,7 +1205,7 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 		p++;
 	    }
 	}
-	memset(line, 0, strlen(line));
+	smemclr(line, strlen(line));
 	sfree(line);
 	line = NULL;
     }
@@ -1173,16 +1220,16 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 
     error:
     if (line) {
-	memset(line, 0, strlen(line));
+	smemclr(line, strlen(line));
 	sfree(line);
 	line = NULL;
     }
     if (ret) {
 	if (ret->keyblob) {
-            memset(ret->keyblob, 0, ret->keyblob_size);
+            smemclr(ret->keyblob, ret->keyblob_size);
             sfree(ret->keyblob);
         }
-        memset(ret, 0, sizeof(*ret));
+        smemclr(ret, sizeof(*ret));
 	sfree(ret);
     }
     if (errmsg_p) *errmsg_p = errmsg;
@@ -1222,9 +1269,9 @@ int sshcom_encrypted(const Filename *filename, char **comment)
 
     done:
     *comment = dupstr(key->comment);
-    memset(key->keyblob, 0, key->keyblob_size);
+    smemclr(key->keyblob, key->keyblob_size);
     sfree(key->keyblob);
-    memset(key, 0, sizeof(*key));
+    smemclr(key, sizeof(*key));
     sfree(key);
     return answer;
 }
@@ -1390,8 +1437,8 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
 	des3_decrypt_pubkey_ossh(keybuf, iv, (unsigned char *)ciphertext,
 				 cipherlen);
 
-        memset(&md5c, 0, sizeof(md5c));
-        memset(keybuf, 0, sizeof(keybuf));
+        smemclr(&md5c, sizeof(md5c));
+        smemclr(keybuf, sizeof(keybuf));
 
         /*
          * Hereafter we return WRONG_PASSPHRASE for any parsing
@@ -1494,12 +1541,12 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
 
     error:
     if (blob) {
-        memset(blob, 0, blobsize);
+        smemclr(blob, blobsize);
         sfree(blob);
     }
-    memset(key->keyblob, 0, key->keyblob_size);
+    smemclr(key->keyblob, key->keyblob_size);
     sfree(key->keyblob);
-    memset(key, 0, sizeof(*key));
+    smemclr(key, sizeof(*key));
     sfree(key);
     if (errmsg_p) *errmsg_p = errmsg;
     return ret;
@@ -1664,15 +1711,15 @@ int sshcom_write(const Filename *filename, struct ssh2_userkey *key,
 	des3_encrypt_pubkey_ossh(keybuf, iv, (unsigned char *)ciphertext,
 				 cipherlen);
 
-        memset(&md5c, 0, sizeof(md5c));
-        memset(keybuf, 0, sizeof(keybuf));
+        smemclr(&md5c, sizeof(md5c));
+        smemclr(keybuf, sizeof(keybuf));
     }
 
     /*
      * And save it. We'll use Unix line endings just in case it's
      * subsequently transferred in binary mode.
      */
-    fp = f_open(*filename, "wb", TRUE);      /* ensure Unix line endings */
+    fp = f_open(filename, "wb", TRUE);      /* ensure Unix line endings */
     if (!fp)
 	goto error;
     fputs("---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----\n", fp);
@@ -1700,15 +1747,15 @@ int sshcom_write(const Filename *filename, struct ssh2_userkey *key,
 
     error:
     if (outblob) {
-        memset(outblob, 0, outlen);
+        smemclr(outblob, outlen);
         sfree(outblob);
     }
     if (privblob) {
-        memset(privblob, 0, privlen);
+        smemclr(privblob, privlen);
         sfree(privblob);
     }
     if (pubblob) {
-        memset(pubblob, 0, publen);
+        smemclr(pubblob, publen);
         sfree(pubblob);
     }
     return ret;

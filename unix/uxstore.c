@@ -317,7 +317,7 @@ void *open_settings_r(const char *sessionname)
     return ret;
 }
 
-char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+char *read_setting_s(void *handle, const char *key)
 {
     tree234 *tree = (tree234 *)handle;
     const char *val;
@@ -333,11 +333,8 @@ char *read_setting_s(void *handle, const char *key, char *buffer, int buflen)
 
     if (!val)
 	return NULL;
-    else {
-	strncpy(buffer, val, buflen);
-	buffer[buflen-1] = '\0';
-	return buffer;
-    }
+    else
+	return dupstr(val);
 }
 
 int read_setting_i(void *handle, const char *key, int defvalue)
@@ -360,7 +357,7 @@ int read_setting_i(void *handle, const char *key, int defvalue)
 	return atoi(val);
 }
 
-int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
+FontSpec *read_setting_fontspec(void *handle, const char *name)
 {
     /*
      * In GTK1-only PuTTY, we used to store font names simply as a
@@ -375,29 +372,41 @@ int read_setting_fontspec(void *handle, const char *name, FontSpec *result)
      * ("FontName").
      */
     char *suffname = dupcat(name, "Name", NULL);
-    if (read_setting_s(handle, suffname, result->name, sizeof(result->name))) {
+    char *tmp;
+
+    if ((tmp = read_setting_s(handle, suffname)) != NULL) {
+        FontSpec *fs = fontspec_new(tmp);
 	sfree(suffname);
-	return TRUE;		       /* got new-style name */
+	sfree(tmp);
+	return fs;		       /* got new-style name */
     }
     sfree(suffname);
 
     /* Fall back to old-style name. */
-    memcpy(result->name, "server:", 7);
-    if (!read_setting_s(handle, name,
-			result->name + 7, sizeof(result->name) - 7) ||
-	!result->name[7]) {
-	result->name[0] = '\0';
-	return FALSE;
+    tmp = read_setting_s(handle, name);
+    if (tmp && *tmp) {
+        char *tmp2 = dupcat("server:", tmp, NULL);
+        FontSpec *fs = fontspec_new(tmp2);
+	sfree(tmp2);
+	sfree(tmp);
+	return fs;
     } else {
-	return TRUE;
+	sfree(tmp);
+	return NULL;
     }
 }
-int read_setting_filename(void *handle, const char *name, Filename *result)
+Filename *read_setting_filename(void *handle, const char *name)
 {
-    return !!read_setting_s(handle, name, result->path, sizeof(result->path));
+    char *tmp = read_setting_s(handle, name);
+    if (tmp) {
+        Filename *ret = filename_from_str(tmp);
+	sfree(tmp);
+	return ret;
+    } else
+	return NULL;
 }
 
-void write_setting_fontspec(void *handle, const char *name, FontSpec result)
+void write_setting_fontspec(void *handle, const char *name, FontSpec *fs)
 {
     /*
      * read_setting_fontspec had to handle two cases, but when
@@ -405,12 +414,12 @@ void write_setting_fontspec(void *handle, const char *name, FontSpec result)
      * new-style name.
      */
     char *suffname = dupcat(name, "Name", NULL);
-    write_setting_s(handle, suffname, result.name);
+    write_setting_s(handle, suffname, fs->name);
     sfree(suffname);
 }
-void write_setting_filename(void *handle, const char *name, Filename result)
+void write_setting_filename(void *handle, const char *name, Filename *result)
 {
-    write_setting_s(handle, name, result.path);
+    write_setting_s(handle, name, result->path);
 }
 
 void close_settings_r(void *handle)

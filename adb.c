@@ -123,7 +123,7 @@ static void adb_sent(Plug plug, int bufsize)
  * freed by the caller.
  */
 static const char *adb_init(void *frontend_handle, void **backend_handle,
-			    Config *cfg,
+			    Conf *conf,
 			    char *host, int port, char **realhost, int nodelay,
 			    int keepalive)
 {
@@ -136,7 +136,6 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     SockAddr addr;
     const char *err;
     Adb adb;
-	char sendhost[512];
 
     adb = snew(struct adb_backend_data);
     adb->fn = &fn_table;
@@ -152,13 +151,13 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
     {
 	char *buf;
 	buf = dupprintf("Looking up host \"%s\"%s", "localhost",
-			(cfg->addressfamily == ADDRTYPE_IPV4 ? " (IPv4)" :
-			 (cfg->addressfamily == ADDRTYPE_IPV6 ? " (IPv6)" :
+			(conf_get_int(conf, CONF_addressfamily) == ADDRTYPE_IPV4 ? " (IPv4)" :
+			 (conf_get_int(conf, CONF_addressfamily) == ADDRTYPE_IPV6 ? " (IPv6)" :
 			  "")));
 	logevent(adb->frontend, buf);
 	sfree(buf);
     }
-    addr = name_lookup("localhost", port, realhost, cfg, cfg->addressfamily);
+    addr = name_lookup("localhost", port, realhost, conf, conf_get_int(conf, CONF_addressfamily));
     if ((err = sk_addr_error(addr)) != NULL) {
 	sk_addr_free(addr);
 	return err;
@@ -171,15 +170,14 @@ static const char *adb_init(void *frontend_handle, void **backend_handle,
      * Open socket.
      */
     adb->s = new_connection(addr, *realhost, port, 0, 1, nodelay, keepalive,
-			    (Plug) adb, cfg);
+			    (Plug) adb, conf);
     if ((err = sk_socket_error(adb->s)) != NULL)
 	return err;
-
-    if (*cfg->loghost) {
+    if (*conf_get_str(conf, CONF_loghost)) {
 	char *colon;
 
 	sfree(*realhost);
-	*realhost = dupstr(cfg->loghost);
+	*realhost = conf_get_str(conf, CONF_loghost);
 	colon = strrchr(*realhost, ':');
 	if (colon) {
 	    /*
@@ -229,7 +227,7 @@ static void adb_free(void *handle)
 /*
  * Stub routine (we don't have any need to reconfigure this backend).
  */
-static void adb_reconfig(void *handle, Config *cfg)
+static void adb_reconfig(void *handle, Conf *conf)
 {
 }
 

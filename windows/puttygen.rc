@@ -7,16 +7,16 @@
 #define APPNAME "PuTTYgen"
 #define APPDESC "PuTTY SSH key generation utility"
 
-200 ICON "puttygen.ico"
+800 ICON "puttygen.ico"
 
-201 DIALOG DISCARDABLE 0, 0, 318, 270
+801 DIALOG DISCARDABLE 0, 0, 318, 270
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Key Generator"
 FONT 8, "MS Shell Dlg"
 BEGIN
 END
 
-210 DIALOG DISCARDABLE 0, 0, 140, 60
+810 DIALOG DISCARDABLE 0, 0, 140, 60
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTYgen: Enter Passphrase"
 FONT 8, "MS Shell Dlg"
@@ -29,7 +29,7 @@ BEGIN
 END
 
 /* Accelerators used: cl */
-213 DIALOG DISCARDABLE 140, 40, 136, 70
+813 DIALOG DISCARDABLE 140, 40, 136, 70
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About PuTTYgen"
 FONT 8, "MS Shell Dlg"
@@ -38,19 +38,19 @@ BEGIN
     PUSHBUTTON "View &Licence", 101, 6, 52, 70, 14
     CTEXT "PuTTYgen", 102, 10, 6, 120, 8
     CTEXT "", 100, 10, 16, 120, 16
-    CTEXT "\251 1997-2011 Simon Tatham. All rights reserved.",
+    CTEXT "\251 1997-2012 Simon Tatham. All rights reserved.",
           103, 10, 34, 120, 16
 END
 
 /* No accelerators used */
-214 DIALOG DISCARDABLE 50, 50, 226, 263
+814 DIALOG DISCARDABLE 50, 50, 226, 263
 STYLE DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "PuTTY Licence"
 FONT 8, "MS Shell Dlg"
 BEGIN
     DEFPUSHBUTTON "OK", IDOK, 98, 243, 44, 14
 
-    LTEXT "Copyright \251 1997-2011 Simon Tatham", 1000, 10, 10, 206, 8
+    LTEXT "Copyright \251 1997-2012 Simon Tatham", 1000, 10, 10, 206, 8
 
     LTEXT "Portions copyright Robert de Bath, Joris van Rantwijk, Delian", 1001, 10, 26, 206, 8
     LTEXT "Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas", 1002, 10, 34, 206, 8

@@ -253,7 +253,7 @@ static void sha1_key_internal(void *handle, unsigned char *key, int len)
     SHA_Init(&keys[1]);
     SHA_Bytes(&keys[1], foo, 64);
 
-    memset(foo, 0, 64);		       /* burn the evidence */
+    smemclr(foo, 64);		       /* burn the evidence */
 }
 
 static void sha1_key(void *handle, unsigned char *key)
@@ -297,11 +297,7 @@ static void sha1_do_hmac(void *handle, unsigned char *blk, int len,
 {
     unsigned char seqbuf[4];
 
-    seqbuf[0] = (unsigned char) ((seq >> 24) & 0xFF);
-    seqbuf[1] = (unsigned char) ((seq >> 16) & 0xFF);
-    seqbuf[2] = (unsigned char) ((seq >> 8) & 0xFF);
-    seqbuf[3] = (unsigned char) ((seq) & 0xFF);
-
+    PUT_32BIT_MSB_FIRST(seqbuf, seq);
     hmacsha1_start(handle);
     hmacsha1_bytes(handle, seqbuf, 4);
     hmacsha1_bytes(handle, blk, len);

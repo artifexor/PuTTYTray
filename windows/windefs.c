@@ -6,42 +6,26 @@
 
 #include <commctrl.h>
 
-FontSpec platform_default_fontspec(const char *name)
+FontSpec *platform_default_fontspec(const char *name)
 {
-    FontSpec ret;
-
-	/*
-	 * HACK: PuttyTray / Vista
-	 * Check windows version and set default font to 'consolas' if this is Windows Vista
-	 */
-    OSVERSIONINFO versioninfo;
-    versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&versioninfo);
-
     if (!strcmp(name, "Font")) {
-		if (versioninfo.dwMajorVersion >= 6) {
-			strcpy(ret.name, "Consolas");
-		} else{
-			strcpy(ret.name, "Courier New");
-		}
+        OSVERSIONINFO versioninfo;
+        versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+        GetVersionEx(&versioninfo);
 
-		ret.isbold = 0;
-		ret.charset = ANSI_CHARSET;
-		ret.height = 10;
-    } else {
-		ret.name[0] = '\0';
-    }
-    return ret;
+        if (versioninfo.dwMajorVersion >= 6)
+            return fontspec_new("Consolas", 0, 10, ANSI_CHARSET);
+        return fontspec_new("Courier New", 0, 10, ANSI_CHARSET);
+    } else
+        return fontspec_new("", 0, 0, 0);
 }
 
-Filename platform_default_filename(const char *name)
+Filename *platform_default_filename(const char *name)
 {
-    Filename ret;
     if (!strcmp(name, "LogFileName"))
-	strcpy(ret.path, "putty.log");
+	return filename_from_str("putty.log");
     else
-	*ret.path = '\0';
-    return ret;
+	return filename_from_str("");
 }
 
 char *platform_default_s(const char *name)
@@ -53,13 +37,13 @@ char *platform_default_s(const char *name)
 
 int platform_default_i(const char *name, int def)
 {
-	if (!strcmp(name, "FontQuality"))
-	{
-		OSVERSIONINFO versioninfo;
-		versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-		GetVersionEx(&versioninfo);
-		if (versioninfo.dwMajorVersion >= 6) 
-			return FQ_CLEARTYPE;
-	}
+    if (!strcmp(name, "FontQuality"))
+    {
+        OSVERSIONINFO versioninfo;
+        versioninfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+        GetVersionEx(&versioninfo);
+        if (versioninfo.dwMajorVersion >= 6) 
+            return FQ_CLEARTYPE;
+    }
     return def;
 }
