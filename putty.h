@@ -480,6 +480,260 @@ extern const int be_default_protocol;
 extern const char *const appname;
 
 /*
+<<<<<<< HEAD
+=======
+ * IMPORTANT POLICY POINT: everything in this structure which wants
+ * to be treated like an integer must be an actual, honest-to-
+ * goodness `int'. No enum-typed variables. This is because parts
+ * of the code will want to pass around `int *' pointers to them
+ * and we can't run the risk of porting to some system on which the
+ * enum comes out as a different size from int.
+ */
+struct config_tag {
+    /* Basic options */
+    char host[512];
+    int port;
+    int protocol;
+    int addressfamily;
+    int close_on_exit;
+    int warn_on_close;
+    int ping_interval;		       /* in seconds */
+    int tcp_nodelay;
+    int tcp_keepalives;
+    char loghost[512];  /* logical host being contacted, for host key check */
+    /* Proxy options */
+    char proxy_exclude_list[512];
+    int proxy_dns;
+    int even_proxy_localhost;
+    int proxy_type;
+    char proxy_host[512];
+    int proxy_port;
+    char proxy_username[128];
+    char proxy_password[128];
+    char proxy_telnet_command[512];
+    /* SSH options */
+    char remote_cmd[512];
+    char *remote_cmd_ptr;	       /* might point to a larger command
+				        * but never for loading/saving */
+    char *remote_cmd_ptr2;	       /* might point to a larger command
+				        * but never for loading/saving */
+    int nopty;
+    int compression;
+    int ssh_kexlist[KEX_MAX];
+    int ssh_rekey_time;		       /* in minutes */
+    char ssh_rekey_data[16];
+    int tryagent;
+    int agentfwd;
+    int change_username;	       /* allow username switching in SSH-2 */
+    int ssh_cipherlist[CIPHER_MAX];
+    Filename keyfile;
+    int sshprot;		       /* use v1 or v2 when both available */
+    int ssh2_des_cbc;		       /* "des-cbc" unrecommended SSH-2 cipher */
+    int ssh_no_userauth;	       /* bypass "ssh-userauth" (SSH-2 only) */
+    int ssh_show_banner;	       /* show USERAUTH_BANNERs (SSH-2 only) */
+    int try_tis_auth;
+    int try_ki_auth;
+    int try_gssapi_auth;               /* attempt gssapi auth */
+    int gssapifwd;                     /* forward tgt via gss */
+    int ssh_gsslist[4];		       /* preference order for local GSS libs */
+    Filename ssh_gss_custom;
+    int ssh_subsys;		       /* run a subsystem rather than a command */
+    int ssh_subsys2;		       /* fallback to go with remote_cmd_ptr2 */
+    int ssh_no_shell;		       /* avoid running a shell */
+    char ssh_nc_host[512];	       /* host to connect to in `nc' mode */
+    int ssh_nc_port;		       /* port to connect to in `nc' mode */
+    /* Telnet options */
+    char termtype[32];
+    char termspeed[32];
+    char ttymodes[768];		       /* MODE\tVvalue\0MODE\tA\0\0 */
+    char environmt[1024];	       /* VAR\tvalue\0VAR\tvalue\0\0 */
+    char username[100];
+    int username_from_env;
+    char localusername[100];
+    int rfc_environ;
+    int passive_telnet;
+    /* Serial port options */
+    char serline[256];
+    int serspeed;
+    int serdatabits, serstopbits;
+    int serparity;
+    int serflow;
+    /* Keyboard options */
+    int bksp_is_delete;
+    int rxvt_homeend;
+    int funky_type;
+    int no_applic_c;		       /* totally disable app cursor keys */
+    int no_applic_k;		       /* totally disable app keypad */
+    int no_mouse_rep;		       /* totally disable mouse reporting */
+    int no_remote_resize;	       /* disable remote resizing */
+    int no_alt_screen;		       /* disable alternate screen */
+    int no_remote_wintitle;	       /* disable remote retitling */
+    int no_dbackspace;		       /* disable destructive backspace */
+    int no_remote_charset;	       /* disable remote charset config */
+    int remote_qtitle_action;	       /* remote win title query action */
+    int app_cursor;
+    int app_keypad;
+    int nethack_keypad;
+    int telnet_keyboard;
+    int telnet_newline;
+    int alt_f4;			       /* is it special? */
+    int alt_space;		       /* is it special? */
+    int alt_only;		       /* is it special? */
+    int localecho;
+    int localedit;
+    int alwaysontop;
+    int fullscreenonaltenter;
+    int scroll_on_key;
+    int scroll_on_disp;
+    int erase_to_scrollback;
+    int compose_key;
+    int ctrlaltkeys;
+    char wintitle[256];		       /* initial window title */
+    /* Terminal options */
+    int savelines;
+    int dec_om;
+    int wrap_mode;
+    int lfhascr;
+    int cursor_type;		       /* 0=block 1=underline 2=vertical */
+    int blink_cur;
+    int beep;
+    int beep_ind;
+    int bellovl;		       /* bell overload protection active? */
+    int bellovl_n;		       /* number of bells to cause overload */
+    int bellovl_t;		       /* time interval for overload (seconds) */
+    int bellovl_s;		       /* period of silence to re-enable bell (s) */
+    Filename bell_wavefile;
+    int scrollbar;
+    int scrollbar_in_fullscreen;
+    int resize_action;
+    int bce;
+    int blinktext;
+    int win_name_always;
+    int width, height;
+    FontSpec font;
+    int font_quality;
+    Filename logfilename;
+    int logtype;
+    int logxfovr;
+    int logflush;
+    int logomitpass;
+    int logomitdata;
+    int hide_mouseptr;
+    int sunken_edge;
+    int window_border;
+    char answerback[256];
+    char printer[128];
+    int printclip;
+    int arabicshaping;
+    int bidi;
+    /* Colour options */
+    int ansi_colour;
+    int xterm_256_colour;
+    int system_colour;
+    int try_palette;
+    int bold_colour;
+    unsigned char colours[22][3];
+    /* Selection options */
+    int mouse_is_xterm;
+    int rect_select;
+    int rawcnp;
+    int rtf_paste;
+    int mouse_override;
+    short wordness[256];
+    /* translations */
+    int vtmode;
+    char line_codepage[128];
+    int cjk_ambig_wide;
+    int utf8_override;
+    int xlat_capslockcyr;
+    /* X11 forwarding */
+    int x11_forward;
+    char x11_display[128];
+    int x11_auth;
+    Filename xauthfile;
+    /* port forwarding */
+    int lport_acceptall; /* accept conns from hosts other than localhost */
+    int rport_acceptall; /* same for remote forwarded ports (SSH-2 only) */
+    /*
+     * The port forwarding string contains a number of
+     * NUL-terminated substrings, terminated in turn by an empty
+     * string (i.e. a second NUL immediately after the previous
+     * one). Each string can be of one of the following forms:
+     * 
+     *   [LR]localport\thost:port
+     *   [LR]localaddr:localport\thost:port
+     *   Dlocalport
+     *   Dlocaladdr:localport
+     */
+    char portfwd[1024];
+    /* SSH bug compatibility modes */
+    int sshbug_ignore1, sshbug_plainpw1, sshbug_rsa1,
+	sshbug_hmac2, sshbug_derivekey2, sshbug_rsapad2,
+	sshbug_pksessid2, sshbug_rekey2, sshbug_maxpkt2,
+	sshbug_ignore2;
+    /*
+     * ssh_simple means that we promise never to open any channel other
+     * than the main one, which means it can safely use a very large
+     * window in SSH-2.
+     */
+    int ssh_simple;
+    /* Options for pterm. Should split out into platform-dependent part. */
+    int stamp_utmp;
+    int login_shell;
+    int scrollbar_on_left;
+    int shadowbold;
+    FontSpec boldfont;
+    FontSpec widefont;
+    FontSpec wideboldfont;
+    int shadowboldoffset;
+    int crhaslf;
+    char winclass[256];
+
+	/*
+	 * HACK: PuttyTray / Transparency
+	 */
+	int transparency;
+	
+	/*
+	 * HACK: PuttyTray / Reconnect
+	 */
+	int wakeup_reconnect;
+	int failure_reconnect;
+
+	/*
+	 * HACK: PuttyTray / PuTTY File
+	 */
+	int session_storagetype;
+
+	/*
+	 * HACK: PuttyTray / Nutty
+	 * Hyperlink stuff: Underline settings
+	 */
+	int url_ctrl_click;
+	int url_underline;
+	int url_defbrowser;
+	int url_defregex;
+#ifndef MAX_PATH
+#	define MAX_PATH 260
+#endif
+	char url_browser[MAX_PATH];
+	char url_regex[1024];
+
+	/*
+	 * HACK: PuttyTray
+	 */
+    int tray;
+	int start_tray;
+	int tray_restore;
+
+	/*
+	 * HACK: PuttyTray / Session Icon
+	 */
+	char win_icon[256];
+};
+
+/*
+>>>>>>> upstream/master
  * Some global flags denoting the type of application.
  * 
  * FLAG_VERBOSE is set when the user requests verbose details.
