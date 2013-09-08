@@ -106,6 +106,7 @@ static void unmungestr(const char *in, char *out, int outlen)
     return;
 }
 
+<<<<<<< HEAD
 
 /* ---------------------------------------------------------------------------------------------------------
  * ---------------------------------------------------------------------------------------------------------
@@ -113,6 +114,9 @@ static void unmungestr(const char *in, char *out, int outlen)
  * ---------------------------------------------------------------------------------------------------------
  * -------------------------------------------------------------------------------------------------------*/
 void *file_open_settings_w(const char *sessionname, char **errmsg)
+=======
+void *reg_open_settings_w(const char *sessionname, char **errmsg)
+>>>>>>> upstream/master
 {
     char *p;
 	struct setPack* sp;
@@ -144,7 +148,11 @@ void *file_open_settings_w(const char *sessionname, char **errmsg)
 	return sp;
 }
 
+<<<<<<< HEAD
 void file_write_setting_s(void *handle, const char *key, const char *value)
+=======
+void reg_write_setting_s(void *handle, const char *key, const char *value)
+>>>>>>> upstream/master
 {
 	struct setItem *st;
 
@@ -175,7 +183,11 @@ void file_write_setting_s(void *handle, const char *key, const char *value)
 	}
 }
 
+<<<<<<< HEAD
 void file_write_setting_i(void *handle, const char *key, int value)
+=======
+void reg_write_setting_i(void *handle, const char *key, int value)
+>>>>>>> upstream/master
 {
 	struct setItem *st;
 
@@ -205,7 +217,11 @@ void file_write_setting_i(void *handle, const char *key, int value)
 	}
 }
 
+<<<<<<< HEAD
 void file_close_settings_w(void *handle)
+=======
+void reg_close_settings_w(void *handle)
+>>>>>>> upstream/master
 {
 	HANDLE hFile;
 	DWORD written;
@@ -267,7 +283,11 @@ void file_close_settings_w(void *handle)
 	SetCurrentDirectory(oldpath);
 }
 
+<<<<<<< HEAD
 void *file_open_settings_r(const char *sessionname)
+=======
+void *reg_open_settings_r(const char *sessionname)
+>>>>>>> upstream/master
 {
     HKEY subkey1, sesskey;
     char *p;
@@ -423,7 +443,11 @@ void *file_open_settings_r(const char *sessionname)
 	return sp;
 }
 
+<<<<<<< HEAD
 char *file_read_setting_s(void *handle, const char *key, char *buffer, int buflen)
+=======
+char *reg_read_setting_s(void *handle, const char *key)
+>>>>>>> upstream/master
 {
     DWORD type;
 	struct setItem *st;
@@ -458,9 +482,25 @@ char *file_read_setting_s(void *handle, const char *key, char *buffer, int bufle
 	}
 	/* JK: should not end here -> value not found in file */
 	return NULL;
+<<<<<<< HEAD
 }
 
 int file_read_setting_i(void *handle, const char *key, int defvalue)
+=======
+
+    ret = snewn(size+1, char);
+    if (RegQueryValueEx((HKEY) handle, key, 0,
+			&type, ret, &size) != ERROR_SUCCESS ||
+	type != REG_SZ) {
+        sfree(ret);
+        return NULL;
+    }
+
+    return ret;
+}
+
+int reg_read_setting_i(void *handle, const char *key, int defvalue)
+>>>>>>> upstream/master
 {
     DWORD type, val, size;
 	struct setItem *st;
@@ -494,17 +534,36 @@ int file_read_setting_i(void *handle, const char *key, int defvalue)
 int file_read_setting_fontspec(void *handle, const char *name, FontSpec *result)
 {
     char *settingname;
+<<<<<<< HEAD
     FontSpec ret;
+=======
+    char *fontname;
+    FontSpec *ret;
+    int isbold, height, charset;
+
+    fontname = read_setting_s(handle, name);
+    if (!fontname)
+	return NULL;
+>>>>>>> upstream/master
 
     if (!file_read_setting_s(handle, name, ret.name, sizeof(ret.name)))
 	return 0;
     settingname = dupcat(name, "IsBold", NULL);
     ret.isbold = file_read_setting_i(handle, settingname, -1);
     sfree(settingname);
+<<<<<<< HEAD
     if (ret.isbold == -1) return 0;
+=======
+    if (isbold == -1) {
+        sfree(fontname);
+        return NULL;
+    }
+
+>>>>>>> upstream/master
     settingname = dupcat(name, "CharSet", NULL);
     ret.charset = file_read_setting_i(handle, settingname, -1);
     sfree(settingname);
+<<<<<<< HEAD
     if (ret.charset == -1) return 0;
     settingname = dupcat(name, "Height", NULL);
     ret.height = file_read_setting_i(handle, settingname, INT_MIN);
@@ -517,6 +576,12 @@ int file_read_setting_fontspec(void *handle, const char *name, FontSpec *result)
 void file_write_setting_fontspec(void *handle, const char *name, FontSpec font)
 {
     char *settingname;
+=======
+    if (charset == -1) {
+        sfree(fontname);
+        return NULL;
+    }
+>>>>>>> upstream/master
 
     file_write_setting_s(handle, name, font.name);
     settingname = dupcat(name, "IsBold", NULL);
@@ -528,6 +593,7 @@ void file_write_setting_fontspec(void *handle, const char *name, FontSpec font)
     settingname = dupcat(name, "Height", NULL);
     file_write_setting_i(handle, settingname, font.height);
     sfree(settingname);
+<<<<<<< HEAD
 }
 
 int file_read_setting_filename(void *handle, const char *name, Filename *result)
@@ -1875,6 +1941,1133 @@ void *file_open_settings_r(const char *sessionname)
     }
 
     return sp;
+=======
+    if (height == INT_MIN) {
+        sfree(fontname);
+        return NULL;
+    }
+
+    ret = fontspec_new(fontname, isbold, height, charset);
+    sfree(fontname);
+    return ret;
+>>>>>>> upstream/master
+}
+
+char *file_read_setting_s(void *handle, const char *key)
+{
+    struct setItem *st;
+    char *p;
+
+    if (!handle) return NULL;    /* JK: new in 0.1.3 */
+
+    if (((struct setPack*) handle)->fromFile) {
+        
+        p = snewn(3 * strlen(key) + 1, char);
+        mungestr(key, p);
+
+        st = ((struct setPack*) handle)->handle;
+        while (st->key) {
+            if ( strcmp(st->key, p) == 0) {
+                const size_t buflen = 1024*16;
+                char *buffer = snewn(1024*16, char);
+                char *ret;
+                unmungestr(st->value, buffer, buflen);
+                ret = snewn(strlen(buffer) + 1, char);
+                strcpy(ret, buffer);
+                sfree(buffer);
+                return ret;
+            }
+            st = st->next;
+        }
+    }
+    else {
+        return reg_read_setting_s(((struct setPack*) handle)->handle, key);
+    }
+    return NULL;
+}
+
+int file_read_setting_i(void *handle, const char *key, int defvalue)
+{
+    DWORD type, val, size;
+    struct setItem *st;
+    size = sizeof(val);
+
+	if (!handle) return 0;    /* JK: new in 0.1.3 */
+
+    if (((struct setPack*) handle)->fromFile) {
+        st = ((struct setPack*) handle)->handle;
+        while (st->key) {
+            if ( strcmp(st->key, key) == 0) {
+                return atoi(st->value);                
+            }
+            st = st->next;
+        }
+    }
+    else {
+        handle = ((struct setPack*) handle)->handle;
+
+        if (!handle || RegQueryValueEx((HKEY) handle, key, 0, &type, (BYTE *) &val, &size) != ERROR_SUCCESS || size != sizeof(val) || type != REG_DWORD) {
+            return defvalue;
+        }
+        else {
+            return val;
+        }
+    }
+    /* JK: should not end here -> value not found in file */
+    return defvalue;
+}
+
+<<<<<<< HEAD
+void file_close_settings_r(void *handle)
+=======
+void reg_close_settings_r(void *handle)
+>>>>>>> upstream/master
+{
+    if (!handle) return;    /* JK: new in 0.1.3 */
+
+    if (((struct setPack*) handle)->fromFile) {
+        struct setItem *st1, *st2;
+
+        st1 = ((struct setPack*) handle)->handle;
+        while (st1) {
+            st2 = st1->next;
+            sfree(st1);
+            st1 = st2;
+        }
+        sfree( ((struct setPack*) handle)->fileBuf );
+        sfree(handle);
+    }
+    else {
+        handle = ((struct setPack*) handle)->handle;
+        RegCloseKey((HKEY) handle);
+    }
+}
+
+<<<<<<< HEAD
+void file_del_settings(const char *sessionname)
+=======
+void reg_del_settings(const char *sessionname)
+>>>>>>> upstream/master
+{
+    char *p;
+    char *p2;
+
+    /* JK: if sessionname contains [registry] -> cut it off and delete from registry */
+    /*if ( *(sessionname+strlen(sessionname)-1) == ']') {
+
+        p = strrchr(sessionname, '[');
+        *(p-1) = '\0';
+
+        p = snewn(3 * strlen(sessionname) + 1, char);
+        mungestr(sessionname, p);
+        
+        if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS)    return;
+
+        RegDeleteKey(subkey1, p);
+        RegCloseKey(subkey1);
+    }
+    else {*/
+        /* JK: delete from file - file itself */
+
+        p = snewn(3 * strlen(sessionname) + 1, char);
+        mungestr(sessionname, p);
+        p2 = snewn(3 * strlen(p) + 1, char);
+        packstr(p, p2);
+
+        GetCurrentDirectory( (MAX_PATH*2), oldpath);
+        if (SetCurrentDirectory(sesspath)) {
+            if (!DeleteFile(p2))
+            {
+                errorShow("Unable to delete settings.", NULL);
+            }
+            SetCurrentDirectory(oldpath);
+        }
+    //}
+
+<<<<<<< HEAD
+    sfree(p);
+}
+
+void *file_enum_settings_start(void)
+=======
+struct enumsettings {
+    HKEY key;
+    int i;
+    int fromFile;
+    HANDLE hFile;
+};
+
+void *reg_enum_settings_start(void)
+>>>>>>> upstream/master
+{
+    struct enumsettings *ret;
+    HKEY key;
+
+	/* JK: in the first call of this function we can initialize path variables */
+    if (*sesspath == '\0') {
+        loadPath();
+    }
+    /* JK: we have path variables */
+    
+    /* JK: let's do what this function should normally do */
+    ret = snew(struct enumsettings);
+
+    if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &key) != ERROR_SUCCESS) {
+        /*
+         * JK: nothing in registry -> pretend we found it, first call to file_enum_settings_next
+         * will solve this by starting scanning dir sesspath
+        */
+    }
+    ret->key = key;
+    ret->fromFile = 0;
+    ret->hFile = NULL;
+    ret->i = 0;
+
+    return ret;
+}
+
+<<<<<<< HEAD
+char *file_enum_settings_next(void *handle, char *buffer, int buflen)
+=======
+char *reg_enum_settings_next(void *handle, char *buffer, int buflen)
+>>>>>>> upstream/master
+{
+    struct enumsettings *e = (struct enumsettings *) handle;
+    WIN32_FIND_DATA FindFileData;
+    HANDLE hFile;
+    char *otherbuf;
+    
+    if (!handle) return NULL;    /* JK: new in 0.1.3 */
+    
+    otherbuf = snewn( (3*buflen)+1, char); /* must be here */
+
+    if (! ((struct enumsettings *)handle)->fromFile ) {
+
+        /*if (RegEnumKey(e->key, e->i++, otherbuf, 3 * buflen) == ERROR_SUCCESS) {
+            unmungestr(otherbuf, buffer, buflen);
+            strcat(buffer, " [registry]");
+            sfree(otherbuf);
+            return buffer;
+        }
+        else {*/
+            /* JK: registry scanning done, starting scanning directory "sessions" */
+            ((struct enumsettings *)handle)->fromFile = 1;
+            GetCurrentDirectory( (MAX_PATH*2), oldpath);
+            if (!SetCurrentDirectory(sesspath)) {
+                sfree(otherbuf);
+                return NULL;
+            }
+            hFile = FindFirstFile("*", &FindFileData);
+
+            /* JK: skip directories (extra check for "." and ".." too, seems to bug on some machines) */
+            while ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.') { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
+                if (!FindNextFile(hFile,&FindFileData)) {
+                    sfree(otherbuf);
+                    return NULL;
+                }
+            }
+            /* JK: a file found */
+            if (hFile != INVALID_HANDLE_VALUE && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
+                ((struct enumsettings *)handle)->hFile = hFile;
+                unmungestr(FindFileData.cFileName, buffer, buflen);
+                sfree(otherbuf);
+                /* JK: cut off sessionsuffix */
+                otherbuf = buffer + strlen(buffer) - strlen(sessionsuffix);
+                if (strncmp(otherbuf, sessionsuffix, strlen(sessionsuffix)) == 0) {
+                    *otherbuf = '\0';
+                }
+                return buffer;
+            }
+            else {
+                /* JK: not a single file found -> give up */
+                sfree(otherbuf);
+                return NULL;
+            }
+        //}
+    }
+    else if ( ((struct enumsettings *)handle)->fromFile ) {
+        if (FindNextFile(((struct enumsettings *)handle)->hFile,&FindFileData) && !((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) || FindFileData.cFileName[0] == '.')) { // HACK: PUTTY TRAY / PUTTY FILE: Fixed directory check
+            unmungestr(FindFileData.cFileName, buffer, buflen);
+            sfree(otherbuf);
+            /* JK: cut off sessionsuffix */
+            otherbuf = buffer + strlen(buffer) - strlen(sessionsuffix);
+            if (strncmp(otherbuf, sessionsuffix, strlen(sessionsuffix)) == 0) {
+                *otherbuf = '\0';
+            }
+            return buffer;
+        }
+        else {
+            sfree(otherbuf);
+            return NULL;
+        }
+    }
+    /* JK: should not end here */
+    sfree(otherbuf);
+    return NULL;
+}
+
+<<<<<<< HEAD
+void file_enum_settings_finish(void *handle)
+=======
+void reg_enum_settings_finish(void *handle)
+>>>>>>> upstream/master
+{
+    struct enumsettings *e = (struct enumsettings *) handle;
+    if (!handle) return;	/* JK: new in 0.1.3 */
+
+    RegCloseKey(e->key);
+    if (((struct enumsettings *)handle)->hFile != NULL) { FindClose(((struct enumsettings *)handle)->hFile); }
+    SetCurrentDirectory(oldpath);
+    sfree(e);
+}
+
+<<<<<<< HEAD
+int file_verify_host_key(const char *hostname, int port,
+=======
+static void hostkey_regname(char *buffer, const char *hostname,
+			    int port, const char *keytype)
+{
+    int len;
+    strcpy(buffer, keytype);
+    strcat(buffer, "@");
+    len = strlen(buffer);
+    len += sprintf(buffer + len, "%d:", port);
+    mungestr(hostname, buffer + strlen(buffer));
+}
+
+int reg_verify_host_key(const char *hostname, int port,
+>>>>>>> upstream/master
+		    const char *keytype, const char *key)
+{
+    char *otherstr, *regname;
+    int len;
+    HKEY rkey;
+    DWORD readlen;
+    DWORD type;
+    int ret, compare, userMB;
+
+    DWORD fileSize;
+    DWORD bytesRW;
+    char *p;
+    HANDLE hFile;
+    WIN32_FIND_DATA FindFile;
+
+    len = 1 + strlen(key);
+
+<<<<<<< HEAD
+    /* Now read a saved key in from the registry and see what it says. */
+    otherstr = snewn(len, char);
+=======
+    /*
+     * Now read a saved key in from the registry and see what it
+     * says.
+     */
+>>>>>>> upstream/master
+    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
+
+    hostkey_regname(regname, hostname, port, keytype);
+
+<<<<<<< HEAD
+	/* JK: settings on disk - every hostkey as file in dir */
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+    if (SetCurrentDirectory(sshkpath)) {
+        
+        p = snewn(3 * strlen(regname) + 1 + 16, char);
+        packstr(regname, p);
+        strcat(p, keysuffix);
+
+        hFile = CreateFile(p, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+        SetCurrentDirectory(oldpath);
+
+        if (hFile != INVALID_HANDLE_VALUE) {
+            /* JK: ok we got it -> read it to otherstr */
+            fileSize = GetFileSize(hFile, NULL);
+            otherstr = snewn(fileSize+1, char);
+            ReadFile(hFile, otherstr, fileSize, &bytesRW, NULL);
+            *(otherstr+fileSize) = '\0';
+
+            compare = strcmp(otherstr, key);
+
+            CloseHandle(hFile);
+            sfree(otherstr);
+            sfree(regname);
+            sfree(p);
+
+            if (compare) { /* key is here, but different */
+                return 2;
+            }
+            else { /* key is here and match */
+                return 0;
+            }
+        }
+        else {
+            /* not found as file -> try registry */
+            sfree(p);
+        }
+    }
+    else {
+        /* JK: there are no hostkeys as files -> try registry -> nothing to do here now */
+    }
+    
+    /* JK: directory/file not found -> try registry */
+    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys", &rkey) != ERROR_SUCCESS) {
+        return 1;               /* key does not exist in registry */
+=======
+    if (RegOpenKey(HKEY_CURRENT_USER, PUTTY_REG_POS "\\SshHostKeys",
+		   &rkey) != ERROR_SUCCESS) {
+        sfree(regname);
+	return 1;		       /* key does not exist in registry */
+>>>>>>> upstream/master
+    }
+
+    readlen = len;
+    otherstr = snewn(len, char);
+    ret = RegQueryValueEx(rkey, regname, NULL, &type, otherstr, &readlen);
+
+    if (ret != ERROR_SUCCESS && ret != ERROR_MORE_DATA &&
+	!strcmp(keytype, "rsa")) {
+	/*
+	 * Key didn't exist. If the key type is RSA, we'll try
+	 * another trick, which is to look up the _old_ key format
+	 * under just the hostname and translate that.
+	 */
+	char *justhost = regname + 1 + strcspn(regname, ":");
+	char *oldstyle = snewn(len + 10, char);	/* safety margin */
+	readlen = len;
+	ret = RegQueryValueEx(rkey, justhost, NULL, &type,
+			      oldstyle, &readlen);
+
+	if (ret == ERROR_SUCCESS && type == REG_SZ) {
+	    /*
+	     * The old format is two old-style bignums separated by
+	     * a slash. An old-style bignum is made of groups of
+	     * four hex digits: digits are ordered in sensible
+	     * (most to least significant) order within each group,
+	     * but groups are ordered in silly (least to most)
+	     * order within the bignum. The new format is two
+	     * ordinary C-format hex numbers (0xABCDEFG...XYZ, with
+	     * A nonzero except in the special case 0x0, which
+	     * doesn't appear anyway in RSA keys) separated by a
+	     * comma. All hex digits are lowercase in both formats.
+	     */
+	    char *p = otherstr;
+	    char *q = oldstyle;
+	    int i, j;
+
+	    for (i = 0; i < 2; i++) {
+		int ndigits, nwords;
+		*p++ = '0';
+		*p++ = 'x';
+		ndigits = strcspn(q, "/");	/* find / or end of string */
+		nwords = ndigits / 4;
+		/* now trim ndigits to remove leading zeros */
+		while (q[(ndigits - 1) ^ 3] == '0' && ndigits > 1)
+		    ndigits--;
+		/* now move digits over to new string */
+		for (j = 0; j < ndigits; j++)
+		    p[ndigits - 1 - j] = q[j ^ 3];
+		p += ndigits;
+		q += nwords * 4;
+		if (*q) {
+		    q++;	       /* eat the slash */
+		    *p++ = ',';	       /* add a comma */
+		}
+		*p = '\0';	       /* terminate the string */
+	    }
+
+	    /*
+	     * Now _if_ this key matches, we'll enter it in the new
+	     * format. If not, we'll assume something odd went
+	     * wrong, and hyper-cautiously do nothing.
+	     */
+	    if (!strcmp(otherstr, key))
+		RegSetValueEx(rkey, regname, 0, REG_SZ, otherstr,
+			      strlen(otherstr) + 1);
+		/* JK: session is not saved to file - fixme */
+	}
+
+        sfree(oldstyle);
+    }
+
+    compare = strcmp(otherstr, key);
+
+    if (ret == ERROR_MORE_DATA || (ret == ERROR_SUCCESS && type == REG_SZ && compare)) {
+        RegCloseKey(rkey);
+        return 2;               /* key is different in registry */
+    }
+    else if (ret != ERROR_SUCCESS || type != REG_SZ) {
+        RegCloseKey(rkey);
+        return 1;               /* key does not exist in registry */
+    }
+    else { /* key matched OK in registry */
+        /* JK: matching key found in registry -> warn user, ask what to do */
+        p = snewn(256, char);
+        userMB = MessageBox(NULL, "The host key is cached in the Windows registry. "
+            "Do you want to move it to a file? \n\n"
+            "Yes \t-> Move to file (and delete from registry)\n"
+            "No \t-> Copy to file (and keep in registry)\n"
+            "Cancel \t-> nothing will be done\n", "Security risk", MB_YESNOCANCEL|MB_ICONWARNING);
+
+        if ((userMB == IDYES) || (userMB == IDNO)) {
+            /* JK: save key to file */
+            if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
+                createPath(sshkpath);
+            }
+            FindClose(hFile);
+            SetCurrentDirectory(sshkpath);
+
+            p = snewn(3*strlen(regname) + 1 + 16, char);
+            packstr(regname, p);
+            strcat(p, keysuffix);
+            
+            hFile = CreateFile(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+            if (hFile == INVALID_HANDLE_VALUE) {
+                errorShow("Unable to create file (key won't be deleted from registry)", p);
+                userMB = IDNO;
+            }
+            else {
+                if (!WriteFile(hFile, key, strlen(key), &bytesRW, NULL)) {
+                    errorShow("Unable to save key to file (key won't be deleted from registry)", NULL);
+                    userMB = IDNO;
+                }
+                CloseHandle(hFile);
+            }
+        }
+        if (userMB == IDYES) {
+            /* delete from registry */
+            if (RegDeleteValue(rkey, regname) != ERROR_SUCCESS) {
+                errorShow("Unable to delete registry value", regname);
+            }
+        }
+        /* JK: else (Cancel) -> nothing to be done right now */
+        
+        RegCloseKey(rkey);
+
+        sfree(otherstr);
+        sfree(regname);
+        return 0;               
+    }
+}
+
+<<<<<<< HEAD
+void file_store_host_key(const char *hostname, int port,
+=======
+void reg_store_host_key(const char *hostname, int port,
+>>>>>>> upstream/master
+		    const char *keytype, const char *key)
+{
+    char *regname = NULL;
+    WIN32_FIND_DATA FindFile;
+    HANDLE hFile = NULL;
+    char* p = NULL;
+    DWORD bytesWritten;
+
+    regname = snewn(3 * (strlen(hostname) + strlen(keytype)) + 15, char);
+    hostkey_regname(regname, hostname, port, keytype);
+
+	/* JK: save hostkey to file in dir */
+    if ((hFile = FindFirstFile(sshkpath, &FindFile)) == INVALID_HANDLE_VALUE) {
+        createPath(sshkpath);
+    }
+    FindClose(hFile);
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+    SetCurrentDirectory(sshkpath);
+
+    p = snewn(3*strlen(regname) + 1, char);
+    packstr(regname, p);
+    strcat(p, keysuffix);
+    hFile = CreateFile(p, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (hFile == INVALID_HANDLE_VALUE) {
+        errorShow("Unable to create file", p);
+    }
+    else {
+        if (!WriteFile(hFile, key, strlen(key), &bytesWritten, NULL)) {
+            errorShow("Unable to save key to file", NULL);
+        }
+        CloseHandle(hFile);
+    }
+    SetCurrentDirectory(oldpath);
+
+    sfree(p);
+    sfree(regname);
+}
+
+/* ----------------------------------------------------------------------
+ * PUTTY FILE HELPERS (not part of storage.h)
+ */
+/* JK: my generic function for simplyfing error reporting */
+static DWORD errorShow(const char* pcErrText, const char* pcErrParam) {
+
+    HWND hwRodic;
+    DWORD erChyba;
+    char pcBuf[16];
+    char* pcHlaska = snewn((pcErrParam ? strlen(pcErrParam) : 0) + strlen(pcErrText) + 31, char);
+    
+    erChyba = GetLastError();        
+    _ltoa(erChyba, pcBuf, 10);
+
+    strcpy(pcHlaska, "Error: ");
+    strcat(pcHlaska, pcErrText);
+    strcat(pcHlaska, "\n");    
+
+    if (pcErrParam) {
+        strcat(pcHlaska, pcErrParam);
+        strcat(pcHlaska, "\n");
+    }
+    strcat(pcHlaska, "Error code: ");
+    strcat(pcHlaska, pcBuf);
+
+    /* JK: get parent-window and show */
+    hwRodic = GetActiveWindow();
+    if (hwRodic != NULL) { hwRodic = GetLastActivePopup(hwRodic);}
+        if (MessageBox(hwRodic, pcHlaska, "Error", MB_OK|MB_APPLMODAL|MB_ICONEXCLAMATION) == 0) {
+        /* JK: this is really bad -> just ignore */
+        return 0;
+    }
+
+    sfree(pcHlaska);
+    return erChyba;
+};
+
+/* JK: pack string for use as filename - pack < > : " / \ | */
+static void packstr(const char *in, char *out) {
+    while (*in) {
+	if (*in == '<' || *in == '>' || *in == ':' || *in == '"' ||
+	    *in == '/' || *in == '|') {
+	    *out++ = '%';
+	    *out++ = hex[((unsigned char) *in) >> 4];
+	    *out++ = hex[((unsigned char) *in) & 15];
+	} else
+	    *out++ = *in;
+	in++;
+    }
+    *out = '\0';
+}
+
+/*
+ * JK: create directory if specified as dir1\dir2\dir3 and dir1|2 doesn't exists
+ * handle if part of path already exists
+*/
+int createPath(char* dir) {
+    char *p;
+
+    p = strrchr(dir, '\\');
+
+    if (p == NULL) {
+	/* what if it already exists */
+	if (!SetCurrentDirectory(dir)) {
+	    CreateDirectory(dir, NULL);
+	    return SetCurrentDirectory(dir);
+	}
+	return 1;
+    }
+	
+    *p = '\0';
+    createPath(dir);
+    *p = '\\';
+    ++p;
+
+    /* what if it already exists */
+    if (!SetCurrentDirectory(dir)) {
+	CreateDirectory(p, NULL);
+	return SetCurrentDirectory(p);
+    }
+    return 1;
+}
+
+/*
+ * JK: join path pcMain.pcSuf solving extra cases to pcDest
+ * expecting - pcMain as path from WinAPI ::GetCurrentDirectory()/GetModuleFileName()
+ *           - pcSuf as user input path from config (at least MAX_PATH long)
+*/
+char* joinPath(char* pcDest, char* pcMain, char* pcSuf) {
+
+    char* pcBuf = snewn(MAX_PATH+1, char);
+
+    /* at first ExpandEnvironmentStrings */
+    if (0 == ExpandEnvironmentStrings(pcSuf, pcBuf, MAX_PATH)) {
+	/* JK: failure -> revert back - but it ussualy won't work, so report error to user! */
+	errorShow("Unable to ExpandEnvironmentStrings for session path", pcSuf);
+	strncpy(pcBuf, pcSuf, strlen(pcSuf));
+    }
+    /* now ExpandEnvironmentStringsForUser - only on win2000Pro and above */
+    /* It's much more tricky than I've expected, so it's ToDo */
+    /*
+    static HMODULE userenv_module = NULL;
+    typedef BOOL (WINAPI *p_ExpandESforUser_t) (HANDLE, LPCTSTR, LPTSTR, DWORD);
+    static p_ExpandESforUser_t p_ExpandESforUser = NULL;
+	
+    HMODULE userenv_module = LoadLibrary("USERENV.DLL");
+
+    if (userenv_module) {
+	p_ExpandESforUser = (p_ExpandESforUser_t) GetProcAddress(shell32_module, "ExpandEnvironmentStringsForUserA");
+		
+	if (p_ExpandESforUser) {
+
+	    TOKEN_IMPERSONATE
+
+	    if (0 == (p_ExpandESforUser(NULL, pcSuf, pcBuf,	MAX_PATH))) {
+	    /* JK: failure -> revert back - but it ussualy won't work, so report error to user! *//*
+		errorShow("Unable to ExpandEnvironmentStringsForUser for session path", pcBuf);
+		strncpy(pcSuf, pcBuf, strlen(pcSuf));
+	    }
+	}
+    }*/
+
+    /* expand done, resutl in pcBuf */
+
+    if ((*pcBuf == '/') || (*pcBuf == '\\')) {
+	/* everything ok */
+	strcpy(pcDest, pcMain);
+	strcat(pcDest, pcBuf);
+    }
+    else {
+	if (*(pcBuf+1) == ':') {
+	    /* absolute path */
+	    strcpy(pcDest, pcBuf);
+	}
+	else {
+	    /* some weird relative path - add '\' */
+	    strcpy(pcDest, pcMain);
+	    strcat(pcDest, "\\");
+	    strcat(pcDest, pcBuf);
+	}
+    }
+    sfree(pcBuf);
+    return pcDest;
+}
+
+/*
+ * JK: init path variables from config or otherwise
+ * as of 1.5 GetModuleFileName solves our currentDirectory problem
+*/
+int loadPath() {
+
+    char *fileCont = NULL;
+    DWORD fileSize;
+    DWORD bytesRead;
+    char *p = NULL;
+    char *p2 = NULL;
+    HANDLE hFile;
+
+    char* puttypath = snewn( (MAX_PATH*2), char);
+
+    /* JK:  save path/curdir */
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+
+    /* JK: get where putty.exe is */
+    if (GetModuleFileName(NULL, puttypath, (MAX_PATH*2)) != 0)
+    {
+        p = strrchr(puttypath, '\\');
+        if (p)
+        {
+            *p = '\0';
+        }
+        SetCurrentDirectory(puttypath);
+    }
+    else GetCurrentDirectory( (MAX_PATH*2), puttypath);
+
+    /* JK: set default values - if there is a config file, it will be overwitten */
+    strcpy(sesspath, puttypath);
+    strcat(sesspath, "\\sessions");
+    strcpy(sshkpath, puttypath);
+    strcat(sshkpath, "\\sshhostkeys");
+    strcpy(seedpath, puttypath);
+    strcat(seedpath, "\\putty.rnd");
+
+    hFile = CreateFile("putty.conf",GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+
+    /* JK: now we can pre-clean-up */
+    SetCurrentDirectory(oldpath);
+
+    if (hFile != INVALID_HANDLE_VALUE) {
+        fileSize = GetFileSize(hFile, NULL);
+        fileCont = snewn(fileSize+16, char);
+
+        if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL)) {
+            errorShow("Unable to read configuration file, falling back to defaults", NULL);
+        
+            /* JK: default values are already there and clean-up at end */
+        }
+        else {
+            /* JK: parse conf file to path variables */
+            *(fileCont+fileSize) = '\0';
+            p = fileCont;
+            while (p) {
+                if (*p == ';') {    /* JK: comment -> skip line */
+                    p = strchr(p, '\n');
+                    ++p;
+                    continue;
+                }
+                p2 = strchr(p, '=');
+                if (!p2) break;
+                *p2 = '\0';
+                ++p2;
+
+                if (!strcmp(p, "sessions")) {
+                    p = strchr(p2, '\n');
+                    *p = '\0';
+                    joinPath(sesspath, puttypath, p2);
+                    p2 = sesspath+strlen(sesspath)-1;
+                    while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
+                    *(p2+1) = '\0';
+                }
+                else if (!strcmp(p, "sshhostkeys")) {
+                    p = strchr(p2, '\n');
+                    *p = '\0';
+                    joinPath(sshkpath, puttypath, p2);
+                    p2 = sshkpath+strlen(sshkpath)-1;
+                    while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
+                    *(p2+1) = '\0';
+                }
+                else if (!strcmp(p, "seedfile")) {
+                    p = strchr(p2, '\n');
+                    *p = '\0';
+                    joinPath(seedpath, puttypath, p2);            
+                    p2 = seedpath+strlen(seedpath)-1;
+                    while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
+                    *(p2+1) = '\0';
+                }
+                else if (!strcmp(p, "sessionsuffix")) {
+                    p = strchr(p2, '\n');
+                    *p = '\0';
+                    strcpy(sessionsuffix, p2);
+                    p2 = sessionsuffix+strlen(sessionsuffix)-1;
+                    while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
+                    *(p2+1) = '\0';
+                }
+                else if (!strcmp(p, "keysuffix")) {
+                    p = strchr(p2, '\n');
+                    *p = '\0';
+                    strcpy(keysuffix, p2);
+                    p2 = keysuffix+strlen(keysuffix)-1;
+                    while ((*p2 == ' ')||(*p2 == '\n')||(*p2 == '\r')||(*p2 == '\t')) --p2;
+                    *(p2+1) = '\0';
+                }
+                ++p;
+            }
+        }
+        CloseHandle(hFile);
+        sfree(fileCont);
+    }
+    /* else - INVALID_HANDLE {
+     * JK: unable to read conf file - probably doesn't exists
+     * we won't create one, user wants putty light, just fall back to defaults
+     * and defaults are already there
+    }*/
+
+    sfree(puttypath);
+    return 1;
+}
+
+
+/* ---------------------------------------------------------------------------------------------------------
+ * ---------------------------------------------------------------------------------------------------------
+ * FILE FUNCTIONS
+ * ---------------------------------------------------------------------------------------------------------
+ * -------------------------------------------------------------------------------------------------------*/
+void *file_open_settings_w(const char *sessionname, char **errmsg)
+{
+    char *p;
+    struct setPack* sp;
+    *errmsg = NULL;
+
+    if (!sessionname || !*sessionname) {
+	sessionname = "Default Settings";
+    }
+
+    /* JK: if sessionname contains [registry] -> cut it off */
+    /*if ( *(sessionname+strlen(sessionname)-1) == ']') {
+	    p = strrchr(sessionname, '[');
+	    *(p-1) = '\0';
+    }*/
+
+    p = snewn(3 * strlen(sessionname) + 1, char);
+    mungestr(sessionname, p);
+
+    sp = snew( struct setPack );
+    sp->fromFile = 0;
+    sp->handle = NULL;
+
+    /* JK: secure pack for filename */
+    sp->fileBuf = snewn(3 * strlen(p) + 1 + 16, char);
+    packstr(p, sp->fileBuf);
+    strcat(sp->fileBuf, sessionsuffix);
+    sfree(p);
+
+    return sp;
+}
+
+void file_write_setting_s(void *handle, const char *key, const char *value)
+{
+    struct setItem *st;
+
+    if (handle) {
+        /* JK: counting max lenght of keys/values */
+        ((struct setPack*) handle)->fromFile = max(((struct setPack*) handle)->fromFile, strlen(key)+1);
+        ((struct setPack*) handle)->fromFile = max(((struct setPack*) handle)->fromFile, strlen(value)+1);
+
+        st = ((struct setPack*) handle)->handle;
+        while (st) {
+            if ( strcmp(st->key, key) == 0) {
+                /* this key already set -> reset */
+                sfree(st->value);
+                st->value = snewn( strlen(value)+1, char);
+                strcpy(st->value, value);
+                return;
+            }
+            st = st->next;
+        }
+        /* JK: key not found -> add to begin */
+        st = snew( struct setItem );
+        st->key = snewn( strlen(key)+1, char);
+        strcpy(st->key, key);
+        st->value = snewn( strlen(value)+1, char);
+        strcpy(st->value, value);
+        st->next = ((struct setPack*) handle)->handle;
+        ((struct setPack*) handle)->handle = st;
+    }
+}
+
+void file_write_setting_i(void *handle, const char *key, int value)
+{
+    struct setItem *st;
+
+    if (handle) {
+        /* JK: counting max lenght of keys/values */
+        ((struct setPack*) handle)->fromFile = max(((struct setPack*) handle)->fromFile, strlen(key)+1);
+
+        st = ((struct setPack*) handle)->handle;
+        while (st) {
+            if ( strcmp(st->key, key) == 0) {
+                /* this key already set -> reset */
+                sfree(st->value);
+                st->value = snewn(16, char);
+                _itoa(value, st->value, 10);
+                return;
+            }
+            st = st->next;
+        }
+        /* JK: key not found -> add to begin */
+        st = snew( struct setItem );
+        st->key = snewn( strlen(key)+1, char);
+        strcpy(st->key, key);
+        st->value = snewn(16, char);
+        _itoa(value, st->value, 10);
+        st->next = ((struct setPack*) handle)->handle;
+        ((struct setPack*) handle)->handle = st;
+    }
+}
+
+void file_close_settings_w(void *handle)
+{
+    HANDLE hFile;
+    DWORD written;
+    WIN32_FIND_DATA FindFile;
+    char *p;
+    struct setItem *st1,*st2;
+    int writeok;
+
+    if (!handle) return;
+
+    /* JK: we will write to disk now - open file, filename stored in handle already packed */
+    if ((hFile = FindFirstFile(sesspath, &FindFile)) == INVALID_HANDLE_VALUE) {
+        if (!createPath(sesspath)) {
+            errorShow("Unable to create directory for storing sessions", sesspath);
+            return;
+        }
+    }
+    FindClose(hFile);
+    GetCurrentDirectory( (MAX_PATH*2), oldpath);
+    SetCurrentDirectory(sesspath);
+
+    hFile = CreateFile( ((struct setPack*) handle)->fileBuf, GENERIC_WRITE,0,NULL,CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        errorShow("Unable to open file for writing", ((struct setPack*) handle)->fileBuf );
+        return;
+    }
+
+    /* JK: allocate enough memory for all keys/values */
+    p = snewn( max( 3* ((struct setPack*) handle)->fromFile ,16), char);
+
+    /* JK: process linked list */
+    st1 = ((struct setPack*) handle)->handle;
+    writeok = 1;
+
+    while (st1) {
+        mungestr(st1->key, p);
+        writeok = writeok && WriteFile( (HANDLE) hFile, p, strlen(p), &written, NULL);
+        writeok = writeok && WriteFile( (HANDLE) hFile, "\\", 1, &written, NULL);
+
+        mungestr(st1->value, p);
+        writeok = writeok && WriteFile( (HANDLE) hFile, p, strlen(p), &written, NULL);
+        writeok = writeok && WriteFile( (HANDLE) hFile, "\\\n", 2, &written, NULL);
+
+        if (!writeok) {
+            errorShow("Unable to save settings", st1->key);
+            return;
+            /* JK: memory should be freed here - fixme */
+        }
+
+        st2 = st1->next;
+        sfree(st1->key);
+        sfree(st1->value);
+        sfree(st1);
+        st1 = st2;
+    }
+
+    sfree(((struct setPack*) handle)->fileBuf);
+    CloseHandle( (HANDLE)hFile );
+    SetCurrentDirectory(oldpath);
+}
+
+void *file_open_settings_r(const char *sessionname)
+{
+    HKEY subkey1, sesskey;
+    char *p;
+    char *fileCont;
+    DWORD fileSize;
+    DWORD bytesRead;
+    HANDLE hFile;
+    struct setPack* sp;
+    struct setItem *st1, *st2;
+
+    sp = snew( struct setPack );
+
+    if (!sessionname || !*sessionname) {
+        sessionname = "Default Settings";
+    }
+
+    /* JK: in the first call of this function we initialize path variables */
+    if (*sesspath == '\0') {
+        loadPath();
+    }
+
+    /* JK: if sessionname contains [registry] -> cut it off in another buffer */
+    /*if ( *(sessionname+strlen(sessionname)-1) == ']') {
+        ses = snewn(strlen(sessionname)+1, char);
+        strcpy(ses, sessionname);
+
+        p = strrchr(ses, '[');
+        *(p-1) = '\0';
+
+        p = snewn(3 * strlen(ses) + 1, char);
+        mungestr(ses, p);
+        sfree(ses);
+
+        sp->fromFile = 0;
+    }
+    else {*/
+        p = snewn(3 * strlen(sessionname) + 1 + 16, char);
+        mungestr(sessionname, p);
+        strcat(p, sessionsuffix);
+
+        sp->fromFile = 1;
+    //}
+
+    /* JK: default settings must be read from registry */
+    /* 8.1.2007 - 0.1.6 try to load them from file if exists - nasty code duplication */
+    if (!strcmp(sessionname, "Default Settings")) {
+        GetCurrentDirectory( (MAX_PATH*2), oldpath);
+        if (SetCurrentDirectory(sesspath)) {
+            hFile = CreateFile(p, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+        }
+        else {
+            hFile = INVALID_HANDLE_VALUE;
+        }
+        SetCurrentDirectory(oldpath);
+        
+        if (hFile == INVALID_HANDLE_VALUE) {
+            sp->fromFile = 0;
+        }
+        else {
+            sp->fromFile = 1;
+            CloseHandle(hFile);
+        }
+    }
+
+    if (sp->fromFile) {
+        /* JK: session is in file -> open dir/file */
+        GetCurrentDirectory( (MAX_PATH*2), oldpath);
+        if (SetCurrentDirectory(sesspath)) {
+            hFile = CreateFile(p, GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
+        }
+        else {
+            hFile = INVALID_HANDLE_VALUE;
+        }
+        SetCurrentDirectory(oldpath);
+        
+        if (hFile == INVALID_HANDLE_VALUE) {
+            // This used to actively report an error, which doesn't
+            // happen on the registry path.  I couldn't see why.
+            sfree(p);
+            return NULL;
+        }
+
+        /* JK: succes -> load structure setPack from file */
+        fileSize = GetFileSize(hFile, NULL);
+        fileCont = snewn(fileSize+16, char);
+
+        if (!ReadFile(hFile, fileCont, fileSize, &bytesRead, NULL)) {
+            errorShow("Unable to read session from file", p);
+            sfree(p);
+            return NULL;
+        }
+        sfree(p);
+
+        st1 = snew( struct setItem );
+        sp->fromFile = 1;
+        sp->handle = st1;
+        
+        p = fileCont;
+        sp->fileBuf = fileCont; /* JK: remeber for memory freeing */
+
+        /* pJK: arse file in format:
+         * key1\value1\
+         * ...
+        */
+        while (p < (fileCont+fileSize)) {
+            st1->key = p;
+            p = strchr(p, '\\');
+            if (!p) break;
+            *p = '\0';
+            ++p;
+            st1->value = p;
+            p = strchr(p, '\\');
+            if (!p) break;
+            *p = '\0';
+            ++p;
+            ++p; /* for "\\\n" - human readable files */
+
+            st2 = snew( struct setItem );
+            st2->next = NULL;
+            st2->key = NULL;
+            st2->value = NULL;
+
+            st1->next = st2;
+            st1 = st2;
+        }
+        CloseHandle(hFile);
+    }
+    else {
+        /* JK: session is in registry */
+        if (RegOpenKey(HKEY_CURRENT_USER, puttystr, &subkey1) != ERROR_SUCCESS) {
+            sesskey = NULL;
+        }
+        else {
+            if (RegOpenKey(subkey1, p, &sesskey) != ERROR_SUCCESS) {
+                sesskey = NULL;
+            }
+            RegCloseKey(subkey1);
+        }
+        sp->fromFile = 0;
+        sp->handle = sesskey;
+        sfree(p);
+    }
+
+    return sp;
 }
 
 char *file_read_setting_s(void *handle, const char *key)
@@ -1985,8 +3178,9 @@ void file_del_settings(const char *sessionname)
     else {*/
         /* JK: delete from file - file itself */
 
-        p = snewn(3 * strlen(sessionname) + 1, char);
+        p = snewn(3 * strlen(sessionname) + strlen(sessionsuffix) + 1, char);
         mungestr(sessionname, p);
+        strcat(p, sessionsuffix);
         p2 = snewn(3 * strlen(p) + 1, char);
         packstr(p, p2);
 
@@ -2362,7 +3556,10 @@ enum { DEL, OPEN_R, OPEN_W };
 static int try_random_seed(char const *path, int action, HANDLE *ret)
 {
     if (action == DEL) {
-	remove(path);
+        if (!DeleteFile(path) && GetLastError() != ERROR_FILE_NOT_FOUND) {
+            nonfatal("Unable to delete '%s': %s", path,
+                     win_strerror(GetLastError()));
+        }
 	*ret = INVALID_HANDLE_VALUE;
 	return FALSE;		       /* so we'll do the next ones too */
     }
@@ -2642,7 +3839,7 @@ static int transform_jumplist_registry
     /*
      * Either return or free the result.
      */
-    if (out)
+    if (out && ret == ERROR_SUCCESS)
         *out = old_value;
     else
         sfree(old_value);
@@ -2675,7 +3872,7 @@ char *get_jumplist_registry_entries (void)
 {
     char *list_value;
 
-    if (transform_jumplist_registry(NULL,NULL,&list_value) != ERROR_SUCCESS) {
+    if (transform_jumplist_registry(NULL,NULL,&list_value) != JUMPLISTREG_OK) {
 	list_value = snewn(2, char);
         *list_value = '\0';
         *(list_value + 1) = '\0';

@@ -14,6 +14,7 @@
  */ 
 #include "win_res.h"
 //--------------------------
+<<<<<<< HEAD
 
 /*
  * HACK: PuttyTray / Session Icon
@@ -21,6 +22,8 @@
  */ 
 #include "win_res.h"
 //--------------------------
+=======
+>>>>>>> upstream/master
 
 OSVERSIONINFO osVersion;
 
@@ -186,6 +189,69 @@ HMODULE load_system32_dll(const char *libname)
     ret = LoadLibrary(fullpath);
     sfree(fullpath);
     return ret;
+}
+
+/*
+ * A tree234 containing mappings from system error codes to strings.
+ */
+
+struct errstring {
+    int error;
+    char *text;
+};
+
+static int errstring_find(void *av, void *bv)
+{
+    int *a = (int *)av;
+    struct errstring *b = (struct errstring *)bv;
+    if (*a < b->error)
+        return -1;
+    if (*a > b->error)
+        return +1;
+    return 0;
+}
+static int errstring_compare(void *av, void *bv)
+{
+    struct errstring *a = (struct errstring *)av;
+    return errstring_find(&a->error, bv);
+}
+
+static tree234 *errstrings = NULL;
+
+const char *win_strerror(int error)
+{
+    struct errstring *es;
+
+    if (!errstrings)
+        errstrings = newtree234(errstring_compare);
+
+    es = find234(errstrings, &error, errstring_find);
+
+    if (!es) {
+        int bufsize;
+
+        es = snew(struct errstring);
+        es->error = error;
+        /* maximum size for FormatMessage is 64K */
+        bufsize = 65535;
+        es->text = snewn(bufsize, char);
+        if (!FormatMessage((FORMAT_MESSAGE_FROM_SYSTEM |
+                            FORMAT_MESSAGE_IGNORE_INSERTS), NULL, error,
+                           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                           es->text, bufsize, NULL)) {
+            sprintf(es->text,
+                    "Windows error code %d (and FormatMessage returned %d)", 
+                    error, GetLastError());
+        } else {
+            int len = strlen(es->text);
+            if (len > 0 && es->text[len-1] == '\n')
+                es->text[len-1] = '\0';
+        }
+        es->text = sresize(es->text, strlen(es->text) + 1, char);
+        add234(errstrings, es);
+    }
+
+    return es->text;
 }
 
 #ifdef DEBUG
@@ -484,6 +550,7 @@ FontSpec *fontspec_deserialise(void *vdata, int maxsize, int *used)
                         GET_32BIT_MSB_FIRST(end + 8));
 }
 
+<<<<<<< HEAD
 HICON extract_icon(char *iconpath, int smallicon)
 {
     char *iname, *comma;
@@ -523,6 +590,47 @@ HICON extract_icon(char *iconpath, int smallicon)
 		return hiconLarge;
 	}
 };
+=======
+HICON extract_icon(const char *iconpath, int smallicon)
+{
+    char *iname, *comma;
+    int iindex;
+    HICON hiconLarge, hiconSmall;
+
+    hiconLarge = NULL;
+    hiconSmall = NULL;
+
+    if (iconpath && iconpath[0]) {
+	iname = dupstr(iconpath);
+	comma = strrchr(iname, ',');
+
+	if (comma) {
+	    *comma = '\0';
+	    *comma++;
+	    iindex = atoi(comma);
+
+	    ExtractIconEx(iname, iindex, &hiconLarge, &hiconSmall, 1);
+	}
+	sfree(iname);
+    }
+
+    // Fix if no icon found
+    if (!hiconLarge && !smallicon) {
+        hiconLarge = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON,
+            GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR|LR_SHARED);
+    }
+    if (!hiconSmall && smallicon) {
+        hiconSmall = LoadImage(hinst, MAKEINTRESOURCE(IDI_MAINICON), IMAGE_ICON,
+            GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR|LR_SHARED);
+    }
+
+    if (smallicon) {
+	return hiconSmall;
+    } else {
+	return hiconLarge;
+    }
+}
+>>>>>>> upstream/master
 
 Filename *get_id_rsa_path() {
     CHAR path[MAX_PATH];
@@ -530,3 +638,31 @@ Filename *get_id_rsa_path() {
     strcat(path, "\\.ssh\\id_rsa");
     return filename_from_str(path);
 }
+<<<<<<< HEAD
+=======
+
+/* Naming Files, Paths, and Namespaces:
+ * http://msdn.microsoft.com/en-us/library/windows/desktop/aa365247.aspx
+ */
+void sanitise_path_leaving_slashes(char *path) {
+    const char replacement = '_';
+    const size_t len = strlen(path);
+    size_t i;
+    for (i = 0; i < len; ++i) {
+        if (path[i] < 32) {
+            path[i] = replacement;
+            continue;
+        }
+        switch (path[i]) {
+        case '<':
+        case '>':
+        case ':':
+        case '|':
+        case '?':
+        case '*':
+            path[i] = replacement;
+            continue;
+        }
+    }
+}
+>>>>>>> upstream/master

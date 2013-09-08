@@ -289,8 +289,8 @@ static int ssh2_read_mpint(void *data, int len, struct mpint_pos *ret)
 
     if (len < 4)
         goto error;
-    bytes = GET_32BIT(d);
-    if (len < 4+bytes)
+    bytes = toint(GET_32BIT(d));
+    if (bytes < 0 || len-4 < bytes)
         goto error;
 
     ret->start = d + 4;
@@ -370,8 +370,11 @@ static struct openssh_key *load_openssh_key(const Filename *filename,
 	}
 	strip_crlf(line);
 	if (0 == strncmp(line, "-----END ", 9) &&
-	    0 == strcmp(line+strlen(line)-16, "PRIVATE KEY-----"))
+	    0 == strcmp(line+strlen(line)-16, "PRIVATE KEY-----")) {
+            sfree(line);
+            line = NULL;
 	    break;		       /* done */
+        }
 	if ((p = strchr(line, ':')) != NULL) {
 	    if (headers_done) {
 		errmsg = "header found in body of key data";
@@ -762,6 +765,10 @@ int openssh_write(const Filename *filename, struct ssh2_userkey *key,
         struct mpint_pos n, e, d, p, q, iqmp, dmp1, dmq1;
         Bignum bd, bp, bq, bdmp1, bdmq1;
 
+        /*
+         * These blobs were generated from inside PuTTY, so we needn't
+         * treat them as untrusted.
+         */
         pos = 4 + GET_32BIT(pubblob);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &e);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &n);
@@ -815,6 +822,10 @@ int openssh_write(const Filename *filename, struct ssh2_userkey *key,
         int pos;
         struct mpint_pos p, q, g, y, x;
 
+        /*
+         * These blobs were generated from inside PuTTY, so we needn't
+         * treat them as untrusted.
+         */
         pos = 4 + GET_32BIT(pubblob);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &p);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &q);
@@ -984,16 +995,27 @@ char *openssh_to_pubkey(struct ssh2_userkey *key) {
 
     pub_blob = key->alg->public_blob(key->data, &pub_len);
     buffer = snewn(strlen(key->alg->name) + 4 * ((pub_len + 2) / 3) +
+<<<<<<< HEAD
 		   strlen(key->comment) + 3, char);
+=======
+                   strlen(key->comment) + 3, char);
+>>>>>>> upstream/master
     strcpy(buffer, key->alg->name);
     p = buffer + strlen(buffer);
     *p++ = ' ';
     i = 0;
     while (i < pub_len) {
+<<<<<<< HEAD
 	int n = (pub_len - i < 3 ? pub_len - i : 3);
 	base64_encode_atom(pub_blob + i, n, p);
 	i += n;
 	p += 4;
+=======
+        int n = (pub_len - i < 3 ? pub_len - i : 3);
+        base64_encode_atom(pub_blob + i, n, p);
+        i += n;
+        p += 4;
+>>>>>>> upstream/master
     }
     *p++ = ' ';
     strcpy(p, key->comment);
@@ -1125,8 +1147,11 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 	    goto error;
 	}
 	strip_crlf(line);
-        if (!strcmp(line, "---- END SSH2 ENCRYPTED PRIVATE KEY ----"))
+        if (!strcmp(line, "---- END SSH2 ENCRYPTED PRIVATE KEY ----")) {
+            sfree(line);
+            line = NULL;
             break;                     /* done */
+        }
 	if ((p = strchr(line, ':')) != NULL) {
 	    if (headers_done) {
 		errmsg = "header found in body of key data";
@@ -1215,10 +1240,14 @@ static struct sshcom_key *load_sshcom_key(const Filename *filename,
 	goto error;
     }
 
+    fclose(fp);
     if (errmsg_p) *errmsg_p = NULL;
     return ret;
 
     error:
+    if (fp)
+        fclose(fp);
+
     if (line) {
 	smemclr(line, strlen(line));
 	sfree(line);
@@ -1241,45 +1270,51 @@ int sshcom_encrypted(const Filename *filename, char **comment)
     struct sshcom_key *key = load_sshcom_key(filename, NULL);
     int pos, len, answer;
 
+    answer = 0;
+
     *comment = NULL;
     if (!key)
-        return 0;
+        goto done;
 
     /*
      * Check magic number.
      */
-    if (GET_32BIT(key->keyblob) != 0x3f6ff9eb)
-        return 0;                      /* key is invalid */
+    if (GET_32BIT(key->keyblob) != 0x3f6ff9eb) {
+        goto done;                     /* key is invalid */
+    }
 
     /*
      * Find the cipher-type string.
      */
-    answer = 0;
     pos = 8;
     if (key->keyblob_len < pos+4)
         goto done;                     /* key is far too short */
-    pos += 4 + GET_32BIT(key->keyblob + pos);   /* skip key type */
-    if (key->keyblob_len < pos+4)
+    len = toint(GET_32BIT(key->keyblob + pos));
+    if (len < 0 || len > key->keyblob_len - pos - 4)
         goto done;                     /* key is far too short */
-    len = GET_32BIT(key->keyblob + pos);   /* find cipher-type length */
-    if (key->keyblob_len < pos+4+len)
+    pos += 4 + len;                    /* skip key type */
+    len = toint(GET_32BIT(key->keyblob + pos)); /* find cipher-type length */
+    if (len < 0 || len > key->keyblob_len - pos - 4)
         goto done;                     /* cipher type string is incomplete */
     if (len != 4 || 0 != memcmp(key->keyblob + pos + 4, "none", 4))
         answer = 1;
 
     done:
-    *comment = dupstr(key->comment);
-    smemclr(key->keyblob, key->keyblob_size);
-    sfree(key->keyblob);
-    smemclr(key, sizeof(*key));
-    sfree(key);
+    if (key) {
+        *comment = dupstr(key->comment);
+        smemclr(key->keyblob, key->keyblob_size);
+        sfree(key->keyblob);
+        smemclr(key, sizeof(*key));
+        sfree(key);
+    } else {
+        *comment = dupstr("");
+    }
     return answer;
 }
 
 static int sshcom_read_mpint(void *data, int len, struct mpint_pos *ret)
 {
-    int bits;
-    int bytes;
+    unsigned bits, bytes;
     unsigned char *d = (unsigned char *) data;
 
     if (len < 4)
@@ -1351,7 +1386,8 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
      */
     pos = 8;
     if (key->keyblob_len < pos+4 ||
-        (len = GET_32BIT(key->keyblob + pos)) > key->keyblob_len - pos - 4) {
+        (len = toint(GET_32BIT(key->keyblob + pos))) < 0 ||
+        len > key->keyblob_len - pos - 4) {
         errmsg = "key blob does not contain a key type string";
         goto error;
     }
@@ -1371,7 +1407,8 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
      * Determine the cipher type.
      */
     if (key->keyblob_len < pos+4 ||
-        (len = GET_32BIT(key->keyblob + pos)) > key->keyblob_len - pos - 4) {
+        (len = toint(GET_32BIT(key->keyblob + pos))) < 0 ||
+        len > key->keyblob_len - pos - 4) {
         errmsg = "key blob does not contain a cipher type string";
         goto error;
     }
@@ -1389,7 +1426,8 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
      * Get hold of the encrypted part of the key.
      */
     if (key->keyblob_len < pos+4 ||
-        (len = GET_32BIT(key->keyblob + pos)) > key->keyblob_len - pos - 4) {
+        (len = toint(GET_32BIT(key->keyblob + pos))) < 0 ||
+        len > key->keyblob_len - pos - 4) {
         errmsg = "key blob does not contain actual key data";
         goto error;
     }
@@ -1453,7 +1491,7 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
     /*
      * Strip away the containing string to get to the real meat.
      */
-    len = GET_32BIT(ciphertext);
+    len = toint(GET_32BIT(ciphertext));
     if (len < 0 || len > cipherlen-4) {
         errmsg = "containing string was ill-formed";
         goto error;
@@ -1494,9 +1532,12 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
         pos += put_mp(blob+pos, p.start, p.bytes);
         pos += put_mp(blob+pos, u.start, u.bytes);
         privlen = pos - publen;
-    } else if (type == DSA) {
+    } else {
         struct mpint_pos p, q, g, x, y;
         int pos = 4;
+
+        assert(type == DSA); /* the only other option from the if above */
+
         if (GET_32BIT(ciphertext) != 0) {
             errmsg = "predefined DSA parameters not supported";
             goto error;
@@ -1521,8 +1562,7 @@ struct ssh2_userkey *sshcom_read(const Filename *filename, char *passphrase,
         publen = pos;
         pos += put_mp(blob+pos, x.start, x.bytes);
         privlen = pos - publen;
-    } else
-	return NULL;
+    }
 
     assert(privlen > 0);	       /* should have bombed by now if not */
 
@@ -1582,6 +1622,10 @@ int sshcom_write(const Filename *filename, struct ssh2_userkey *key,
         int pos;
         struct mpint_pos n, e, d, p, q, iqmp;
 
+        /*
+         * These blobs were generated from inside PuTTY, so we needn't
+         * treat them as untrusted.
+         */
         pos = 4 + GET_32BIT(pubblob);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &e);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &n);
@@ -1607,6 +1651,10 @@ int sshcom_write(const Filename *filename, struct ssh2_userkey *key,
         int pos;
         struct mpint_pos p, q, g, y, x;
 
+        /*
+         * These blobs were generated from inside PuTTY, so we needn't
+         * treat them as untrusted.
+         */
         pos = 4 + GET_32BIT(pubblob);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &p);
         pos += ssh2_read_mpint(pubblob+pos, publen-pos, &q);

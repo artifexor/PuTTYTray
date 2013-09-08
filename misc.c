@@ -159,7 +159,8 @@ char *dupstr(const char *s)
 {
     char *p = NULL;
     if (s) {
-        int len = strlen(s);
+        size_t len = strlen(s);
+        assert(len < SIZE_MAX);
         p = snewn(len + 1, char);
         strcpy(p, s);
     }
@@ -206,6 +207,29 @@ void burnstr(char *string)             /* sfree(str), only clear it first */
         smemclr(string, strlen(string));
         sfree(string);
     }
+}
+
+int toint(unsigned u)
+{
+    /*
+     * Convert an unsigned to an int, without running into the
+     * undefined behaviour which happens by the strict C standard if
+     * the value overflows. You'd hope that sensible compilers would
+     * do the sensible thing in response to a cast, but actually I
+     * don't trust modern compilers not to do silly things like
+     * assuming that _obviously_ you wouldn't have caused an overflow
+     * and so they can elide an 'if (i < 0)' test immediately after
+     * the cast.
+     *
+     * Sensible compilers ought of course to optimise this entire
+     * function into 'just return the input value'!
+     */
+    if (u <= (unsigned)INT_MAX)
+        return (int)u;
+    else if (u >= (unsigned)INT_MIN)   /* wrap in cast _to_ unsigned is OK */
+        return INT_MIN + (int)(u - (unsigned)INT_MIN);
+    else
+        return INT_MIN; /* fallback; should never occur on binary machines */
 }
 
 /*
@@ -306,17 +330,19 @@ char *dupvprintf(const char *fmt, va_list ap)
 char *fgetline(FILE *fp)
 {
     char *ret = snewn(512, char);
-    int size = 512, len = 0;
+    size_t size = 512, len = 0;
     while (fgets(ret + len, size - len, fp)) {
-	len += strlen(ret + len);
-	if (ret[len-1] == '\n')
-	    break;		       /* got a newline, we're done */
-	size = len + 512;
-	ret = sresize(ret, size, char);
+        len += strlen(ret + len);
+        if (ret[len-1] == '\n')
+            break; /* got a newline, we're done */
+        size = len + 512;
+        assert(size < INT_MAX);
+        ret = sresize(ret, size, char);
+        assert(ret);
     }
-    if (len == 0) {		       /* first fgets returned NULL */
-	sfree(ret);
-	return NULL;
+    if (len == 0) { /* first fgets returned NULL */
+        sfree(ret);
+        return NULL;
     }
     ret[len] = '\0';
     return ret;
@@ -545,6 +571,7 @@ void *safemalloc(size_t n, size_t size)
     if (fp)
 	fprintf(fp, "malloc(%d) returns %p\n", size, p);
 #endif
+    assert(p);
     return p;
 }
 
@@ -556,6 +583,8 @@ void *saferealloc(void *ptr, size_t n, size_t size)
 	p = NULL;
     } else {
 	size *= n;
+        if (!size)
+            size = 1;
 	if (!ptr) {
 #ifdef MINEFIELD
 	    p = minefield_c_malloc(size);
@@ -587,6 +616,7 @@ void *saferealloc(void *ptr, size_t n, size_t size)
     if (fp)
 	fprintf(fp, "realloc(%p,%d) returns %p\n", ptr, size, p);
 #endif
+    assert(p);
     return p;
 }
 
@@ -675,7 +705,11 @@ int conf_launchable(Conf *conf)
     if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	return conf_get_str(conf, CONF_serline)[0] != 0;
     else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
+<<<<<<< HEAD
     	return conf_get_str(conf, CONF_cygcmd)[0] != 0;
+=======
+        return conf_get_str(conf, CONF_cygcmd)[0] != 0;
+>>>>>>> upstream/master
     else
 	return conf_get_str(conf, CONF_host)[0] != 0;
 }
@@ -685,7 +719,11 @@ char const *conf_dest(Conf *conf)
     if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	return conf_get_str(conf, CONF_serline);
     else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
+<<<<<<< HEAD
 	return conf_get_str(conf, CONF_cygcmd);
+=======
+        return conf_get_str(conf, CONF_cygcmd);
+>>>>>>> upstream/master
     else
 	return conf_get_str(conf, CONF_host);
 }

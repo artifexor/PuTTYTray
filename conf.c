@@ -475,7 +475,8 @@ int conf_serialised_size(Conf *conf)
 void conf_serialise(Conf *conf, void *vdata)
 {
     unsigned char *data = (unsigned char *)vdata;
-    int i, len;
+    int i;
+    size_t len;
     struct conf_entry *entry;
 
     for (i = 0; (entry = index234(conf->tree, i)) != NULL; i++) {
@@ -517,19 +518,20 @@ void conf_serialise(Conf *conf, void *vdata)
     PUT_32BIT_MSB_FIRST(data, 0xFFFFFFFFU);
 }
 
-int conf_deserialise(Conf *conf, void *vdata, int maxsize)
+size_t conf_deserialise(Conf *conf, void *vdata, size_t maxsize)
 {
     unsigned char *data = (unsigned char *)vdata;
     unsigned char *start = data;
     struct conf_entry *entry;
-    int primary, used;
+    unsigned primary;
+    int used;
     unsigned char *zero;
 
     while (maxsize >= 4) {
 	primary = GET_32BIT_MSB_FIRST(data);
 	data += 4, maxsize -= 4;
 
-	if ((unsigned)primary >= N_CONFIG_OPTIONS)
+	if (primary >= N_CONFIG_OPTIONS)
 	    break;
 
 	entry = snew(struct conf_entry);
@@ -541,7 +543,7 @@ int conf_deserialise(Conf *conf, void *vdata, int maxsize)
 		sfree(entry);
 		goto done;
 	    }
-	    entry->key.secondary.i = GET_32BIT_MSB_FIRST(data);
+	    entry->key.secondary.i = toint(GET_32BIT_MSB_FIRST(data));
 	    data += 4, maxsize -= 4;
 	    break;
 	  case TYPE_STR:
@@ -564,7 +566,7 @@ int conf_deserialise(Conf *conf, void *vdata, int maxsize)
 		sfree(entry);
 		goto done;
 	    }
-	    entry->value.u.intval = GET_32BIT_MSB_FIRST(data);
+	    entry->value.u.intval = toint(GET_32BIT_MSB_FIRST(data));
 	    data += 4, maxsize -= 4;
 	    break;
 	  case TYPE_STR:

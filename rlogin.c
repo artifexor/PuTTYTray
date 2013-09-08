@@ -58,6 +58,7 @@ static void rlogin_log(Plug plug, int type, SockAddr addr, int port,
 	msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
 
     logevent(rlogin->frontend, msg);
+    sfree(msg);
 }
 
 static int rlogin_closing(Plug plug, const char *error_msg, int error_code,
@@ -167,7 +168,8 @@ static const char *rlogin_init(void *frontend_handle, void **backend_handle,
 	rlogin_log,
 	rlogin_closing,
 	rlogin_receive,
-	rlogin_sent
+	rlogin_sent,
+        NULL
     };
     SockAddr addr;
     const char *err;

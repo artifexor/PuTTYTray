@@ -49,6 +49,19 @@ void modalfatalbox(char *p, ...)
     }
     cleanup_exit(1);
 }
+void nonfatal(char *p, ...)
+{
+    va_list ap;
+    fprintf(stderr, "ERROR: ");
+    va_start(ap, p);
+    vfprintf(stderr, p, ap);
+    va_end(ap);
+    fputc('\n', stderr);
+    if (logctx) {
+        log_free(logctx);
+        logctx = NULL;
+    }
+}
 void connection_fatal(void *frontend, char *p, ...)
 {
     va_list ap;
@@ -424,7 +437,7 @@ int main(int argc, char **argv)
 		     */
 		    {
 			Conf *conf2 = conf_new();
-			do_defaults(host, conf2);
+			do_defaults_then_file(host, conf2);
 			if (loaded_session || !conf_launchable(conf2)) {
 			    /* No settings for this host; use defaults */
 			    /* (or session was already loaded with -load) */

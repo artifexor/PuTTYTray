@@ -11,8 +11,15 @@
 
 #ifdef __INTERIX
 #define CTHELPER "posix.exe /u /c cthelper.exe"
+<<<<<<< HEAD
 #else
 #define CTHELPER "cthelper"
+=======
+#define CTHELPER64 "posix.exe /u /c cthelper64.exe"
+#else
+#define CTHELPER "cthelper"
+#define CTHELPER64 "cthelper64"
+>>>>>>> upstream/master
 #endif
 
 #if !defined(CYGTERM_DEBUG)
@@ -127,7 +134,11 @@ cygterm_accepting(Plug plug, OSSocket sock)
 }
 
 
+<<<<<<< HEAD
 static char *getCygwinBin(void);
+=======
+static char *getCygwinBin(int use64);
+>>>>>>> upstream/master
 static void appendPath(const char *append);
 static size_t makeAttributes(char *buf, Conf *conf);
 static const char *spawnChild(char *cmd, LPPROCESS_INFORMATION ppi, PHANDLE pin);
@@ -196,7 +207,16 @@ cygterm_init(void *frontend_handle, void **backend_handle,
 	}
 
 	/*  Build cthelper command line */
+<<<<<<< HEAD
 	cmdlinelen = sprintf(cmdline, CTHELPER" %u %s ", cport, conf_get_str(local->conf, CONF_termtype));
+=======
+	if(conf_get_int(conf, CONF_cygterm64)) {
+		cmdlinelen = sprintf(cmdline, CTHELPER64" %u %s ", cport, conf_get_str(local->conf, CONF_termtype));
+	}
+	else {
+		cmdlinelen = sprintf(cmdline, CTHELPER" %u %s ", cport, conf_get_str(local->conf, CONF_termtype));
+	}
+>>>>>>> upstream/master
 	cmdlinelen += makeAttributes(cmdline + cmdlinelen, conf);
 
 	command = conf_get_str(conf, CONF_cygcmd);
@@ -215,7 +235,11 @@ cygterm_init(void *frontend_handle, void **backend_handle,
 
 	/* Add the Cygwin /bin path to the PATH. */
 	if (conf_get_int(conf, CONF_cygautopath)) {
+<<<<<<< HEAD
 		char *cygwinBinPath = getCygwinBin();
+=======
+		char *cygwinBinPath = getCygwinBin(conf_get_int(conf, CONF_cygterm64));
+>>>>>>> upstream/master
 		if (!cygwinBinPath) {
 			/* we'll try anyway */
 			cygterm_debug("cygwin bin directory not found");
@@ -443,12 +467,20 @@ makeAttributes(char *buf, Conf *conf)
 
 /* Utility functions for spawning cthelper process */
 static BOOL
+<<<<<<< HEAD
 getRegistry(char *valueData, LPDWORD psize, HKEY key, const char *subKey, const char *valueName)
+=======
+getRegistry(char *valueData, LPDWORD psize, HKEY key, const char *subKey, const char *valueName, int use64)
+>>>>>>> upstream/master
 {
 	HKEY k;
 	LONG ret;
 
+<<<<<<< HEAD
 	if (ERROR_SUCCESS != (ret = RegOpenKey(key, subKey, &k)))
+=======
+	if (ERROR_SUCCESS != (ret = RegOpenKeyEx(key, subKey, 0, KEY_READ | (use64 ? KEY_WOW64_64KEY : KEY_WOW64_32KEY), &k )))
+>>>>>>> upstream/master
 		return ret;
 
 	ERROR_SUCCESS == (ret = RegQueryInfoKey(k, 0, 0, 0, 0, 0, 0, 0, 0, psize, 0, 0))
@@ -469,7 +501,11 @@ getRegistry(char *valueData, LPDWORD psize, HKEY key, const char *subKey, const 
 	"rootdir"
 
 static char *
+<<<<<<< HEAD
 getCygwinBin(void)
+=======
+getCygwinBin(int use64)
+>>>>>>> upstream/master
 {
 	char *dir;
 	DWORD size = MAX_PATH;
@@ -477,8 +513,13 @@ getCygwinBin(void)
 	dir = smalloc(size);
 	dir[0] = '\0';
 
+<<<<<<< HEAD
 	if (ERROR_SUCCESS == getRegistry(dir, &size, CYGWIN_U_SETUP_ROOTDIR)
 	    || ERROR_SUCCESS == getRegistry(dir, &size, CYGWIN_S_SETUP_ROOTDIR))
+=======
+	if (ERROR_SUCCESS == getRegistry(dir, &size, CYGWIN_U_SETUP_ROOTDIR, use64)
+	    || ERROR_SUCCESS == getRegistry(dir, &size, CYGWIN_S_SETUP_ROOTDIR, use64))
+>>>>>>> upstream/master
 	{
 		strcat(dir, "\\bin");
 	}

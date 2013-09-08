@@ -15,6 +15,9 @@ AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 AC_PROG_INSTALL
 AC_PROG_RANLIB
 
+AM_PROG_CC_C_O
+AM_PROG_AR
+
 # Mild abuse of the '--enable' option format to allow manual
 # specification of setuid or setgid setup in pterm.
 setidtype=none
@@ -85,7 +88,15 @@ case "$gtk_version_desired:$gtk" in
   1:none | any:none)
     ifdef([AM_PATH_GTK],[
     AM_PATH_GTK([1.2.0], [gtk=1], [])
-    ],[AC_WARNING([generating configure script without GTK 1 autodetection])])
+    ],[
+    # manual check for gtk1
+    AC_PATH_PROG(GTK1_CONFIG, gtk-config, absent)
+    if test "$GTK1_CONFIG" != "absent"; then
+      GTK_CFLAGS=`"$GTK1_CONFIG" --cflags`
+      GTK_LIBS=`"$GTK1_CONFIG" --libs`
+      gtk=1
+    fi
+    ])
     ;;
 esac
 

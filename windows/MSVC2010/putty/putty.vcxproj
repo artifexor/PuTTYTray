@@ -18,6 +18,10 @@
     <ClCompile Include="..\..\..\config.c" />
     <ClCompile Include="..\..\..\cproxy.c" />
     <ClCompile Include="..\..\..\dialog.c" />
+<<<<<<< HEAD
+=======
+    <ClCompile Include="..\..\..\import.c" />
+>>>>>>> upstream/master
     <ClCompile Include="..\..\..\ldisc.c" />
     <ClCompile Include="..\..\..\ldiscucs.c" />
     <ClCompile Include="..\..\..\logging.c" />
@@ -43,11 +47,22 @@
     <ClCompile Include="..\..\..\sshdes.c" />
     <ClCompile Include="..\..\..\sshdh.c" />
     <ClCompile Include="..\..\..\sshdss.c" />
+<<<<<<< HEAD
     <ClCompile Include="..\..\..\sshgssc.c" />
     <ClCompile Include="..\..\..\sshmd5.c" />
     <ClCompile Include="..\..\..\sshpubk.c" />
     <ClCompile Include="..\..\..\sshrand.c" />
     <ClCompile Include="..\..\..\sshrsa.c" />
+=======
+    <ClCompile Include="..\..\..\sshdssg.c" />
+    <ClCompile Include="..\..\..\sshgssc.c" />
+    <ClCompile Include="..\..\..\sshmd5.c" />
+    <ClCompile Include="..\..\..\sshprime.c" />
+    <ClCompile Include="..\..\..\sshpubk.c" />
+    <ClCompile Include="..\..\..\sshrand.c" />
+    <ClCompile Include="..\..\..\sshrsa.c" />
+    <ClCompile Include="..\..\..\sshrsag.c" />
+>>>>>>> upstream/master
     <ClCompile Include="..\..\..\sshsh256.c" />
     <ClCompile Include="..\..\..\sshsh512.c" />
     <ClCompile Include="..\..\..\sshsha.c" />
@@ -62,6 +77,10 @@
     <ClCompile Include="..\..\..\wildcard.c" />
     <ClCompile Include="..\..\..\windows\cygcfg.c" />
     <ClCompile Include="..\..\..\windows\cygterm.c" />
+<<<<<<< HEAD
+=======
+    <ClCompile Include="..\..\..\windows\fatty.c" />
+>>>>>>> upstream/master
     <ClCompile Include="..\..\..\windows\pickicondialog.c" />
     <ClCompile Include="..\..\..\windows\re_lib\regexp.c" />
     <ClCompile Include="..\..\..\windows\sizetip.c" />
@@ -78,6 +97,11 @@
     <ClCompile Include="..\..\..\windows\winmisc.c" />
     <ClCompile Include="..\..\..\windows\winnet.c" />
     <ClCompile Include="..\..\..\windows\winnoise.c" />
+<<<<<<< HEAD
+=======
+    <ClCompile Include="..\..\..\windows\winpgen.c" />
+    <ClCompile Include="..\..\..\windows\winpgnt.c" />
+>>>>>>> upstream/master
     <ClCompile Include="..\..\..\windows\winpgntc.c" />
     <ClCompile Include="..\..\..\windows\winprint.c" />
     <ClCompile Include="..\..\..\windows\winproxy.c" />
@@ -121,9 +145,19 @@
     <ClInclude Include="..\..\..\windows\winstuff.h" />
   </ItemGroup>
   <ItemGroup>
+<<<<<<< HEAD
     <None Include="..\..\..\windows\putty.ico" />
     <None Include="..\..\..\windows\putty.rc" />
     <None Include="..\..\..\windows\puttycfg.ico" />
+=======
+    <None Include="..\..\..\windows\pageant.ico" />
+    <None Include="..\..\..\windows\pageant.rc" />
+    <None Include="..\..\..\windows\putty.ico" />
+    <None Include="..\..\..\windows\putty.rc" />
+    <None Include="..\..\..\windows\puttycfg.ico" />
+    <None Include="..\..\..\windows\puttygen.ico" />
+    <None Include="..\..\..\windows\puttygen.rc" />
+>>>>>>> upstream/master
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\..\putty.rc" />

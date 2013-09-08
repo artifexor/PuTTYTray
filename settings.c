@@ -13,11 +13,14 @@
  * HACK: PuttyTray / Nutty
  */ 
 #include "urlhack.h"
+<<<<<<< HEAD
 
 /*
  * HACK: PuttyTray / Nutty
  */ 
 #include "urlhack.h"
+=======
+>>>>>>> upstream/master
 
 /* The cipher order given here is the default order. */
 static const struct keyvalwhere ciphernames[] = {
@@ -63,12 +66,22 @@ const char* urlhack_default_regex =
         "(((https?|ftp):\\/\\/)|www\\.)"
         "("
             "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)" // 127.0.0.1
+<<<<<<< HEAD
             "|localhost"
             "|([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
+=======
+            "|("
+                "([a-zA-Z0-9\\-]+\\.)*[a-zA-Z0-9\\-]+\\." // ab-c.de-f.qrs.tuv.
+>>>>>>> upstream/master
                 // popular tlds, and anything that could be a country
                 "(aero|asia|biz|cat|com|coop|info|int|jobs"
                     "|mobi|museum|name|net|org|post|pro|tel"
                     "|travel|xxx|edu|gov|mil|[a-zA-Z][a-zA-Z])"
+<<<<<<< HEAD
+=======
+            ")"
+            "|([a-z]+[0-9]*)" // http://foo
+>>>>>>> upstream/master
         ")"
         "(:[0-9]+)?" // :8080
         "((\\/|\\?)[^ \"]*[^ ,;\\.:\">)])?"
@@ -76,6 +89,16 @@ const char* urlhack_default_regex =
     "|(spotify:[^ ]+:[^ ]+)"
     ;
 
+<<<<<<< HEAD
+=======
+const char* urlhack_liberal_regex =
+    "("
+        "([a-zA-Z]+://|[wW][wW][wW]\\.|spotify:|telnet:)"
+        "[^ '\")>]+"
+    ")"
+    ;
+
+>>>>>>> upstream/master
 /*
  * Convenience functions to access the backends[] array
  * (which is only present in tools that manage settings).
@@ -207,7 +230,7 @@ static int gppmap(void *handle, char *name, Conf *conf, int primary)
 	    val = q;
 	*q = '\0';
 
-        if (primary == CONF_portfwd && buf[0] == 'D') {
+        if (primary == CONF_portfwd && strchr(buf, 'D') != NULL) {
             /*
              * Backwards-compatibility hack: dynamic forwardings are
              * indexed in the data store as a third type letter in the
@@ -217,9 +240,10 @@ static int gppmap(void *handle, char *name, Conf *conf, int primary)
              * _listening_ on a local port, and are hence mutually
              * exclusive on the same port number. So here we translate
              * the legacy storage format into the sensible internal
-             * form.
+             * form, by finding the D and turning it into a L.
              */
-            char *newkey = dupcat("L", buf+1, NULL);
+            char *newkey = dupstr(buf);
+            *strchr(newkey, 'D') = 'L';
             conf_set_str_str(conf, primary, newkey, "D");
             sfree(newkey);
         } else {
@@ -261,9 +285,13 @@ static void wmap(void *handle, char const *outkey, Conf *conf, int primary)
              * conceptually incoherent legacy storage format (key
              * "D<port>", value empty).
              */
+            char *L;
+
             realkey = key;             /* restore it at end of loop */
             val = "";
-            key = dupcat("D", key+1, NULL);
+            key = dupstr(key);
+            L = strchr(key, 'L');
+            if (L) *L = 'D';
         } else {
             realkey = NULL;
         }
@@ -543,6 +571,10 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "NetHackKeypad", conf_get_int(conf, CONF_nethack_keypad));
     write_setting_i(sesskey, "Transparency", conf_get_int(conf, CONF_transparency));
     write_setting_i(sesskey, "WakeupReconnect", conf_get_int(conf, CONF_wakeup_reconnect));
+<<<<<<< HEAD
+=======
+    write_setting_i(sesskey, "WakeupReconnectDelay", conf_get_int(conf, CONF_wakeup_reconnect_delay));
+>>>>>>> upstream/master
     write_setting_i(sesskey, "FailureReconnect", conf_get_int(conf, CONF_failure_reconnect));
     write_setting_i(sesskey, "StorageType", conf_get_int(conf, CONF_session_storagetype));
     write_setting_i(sesskey, "Tray", conf_get_int(conf, CONF_tray));
@@ -684,6 +716,10 @@ void save_open_settings(void *sesskey, Conf *conf)
     write_setting_i(sesskey, "SerialFlowControl", conf_get_int(conf, CONF_serflow));
     write_setting_s(sesskey, "WindowClass", conf_get_str(conf, CONF_winclass));
     write_setting_i(sesskey, "CygtermAutoPath", conf_get_int(conf, CONF_cygautopath));
+<<<<<<< HEAD
+=======
+    write_setting_i(sesskey, "Cygterm64", conf_get_int(conf, CONF_cygterm64));
+>>>>>>> upstream/master
     write_setting_s(sesskey, "CygtermCommand", conf_get_str(conf, CONF_cygcmd));
 }
 
@@ -869,6 +905,10 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "NetHackKeypad", 0, conf, CONF_nethack_keypad);
     gppi(sesskey, "Transparency", 255, conf, CONF_transparency);
     gppi(sesskey, "WakeupReconnect", 0, conf, CONF_wakeup_reconnect);
+<<<<<<< HEAD
+=======
+    gppi(sesskey, "WakeupReconnectDelay", 0, conf, CONF_wakeup_reconnect_delay);
+>>>>>>> upstream/master
     gppi(sesskey, "FailureReconnect", 0, conf, CONF_failure_reconnect);
     gppi(sesskey, "StorageType", 0, conf, CONF_session_storagetype);
     gppi(sesskey, "Tray", TRAY_NEVER, conf, CONF_tray);
@@ -887,7 +927,11 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "AltMetabit", 0, conf, CONF_alt_metabit);
     gppi(sesskey, "ComposeKey", 0, conf, CONF_compose_key);
     gppi(sesskey, "CtrlAltKeys", 1, conf, CONF_ctrlaltkeys);
+<<<<<<< HEAD
     gppi(sesskey, "RightAltKey", 1, conf, CONF_rightaltkey);
+=======
+    gppi(sesskey, "RightAltKey", 0, conf, CONF_rightaltkey);
+>>>>>>> upstream/master
     gppi(sesskey, "TelnetKey", 0, conf, CONF_telnet_keyboard);
     gppi(sesskey, "TelnetRet", 1, conf, CONF_telnet_newline);
     gppi(sesskey, "LocalEcho", AUTO, conf, CONF_localecho);
@@ -926,7 +970,11 @@ void load_open_settings(void *sesskey, Conf *conf)
 		 / 1000
 #endif
 		 );
+<<<<<<< HEAD
     gppi(sesskey, "ScrollbackLines", 1000, conf, CONF_savelines);
+=======
+    gppi(sesskey, "ScrollbackLines", 2000, conf, CONF_savelines);
+>>>>>>> upstream/master
     gppi(sesskey, "LinesAtAScroll", -1, conf, CONF_scrolllines);
     gppi(sesskey, "DECOriginMode", 0, conf, CONF_dec_om);
     gppi(sesskey, "AutoWrapMode", 1, conf, CONF_wrap_mode);
@@ -945,7 +993,7 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "TryPalette", 0, conf, CONF_try_palette);
     gppi(sesskey, "ANSIColour", 1, conf, CONF_ansi_colour);
     gppi(sesskey, "Xterm256Colour", 1, conf, CONF_xterm_256_colour);
-    i = gppi_raw(sesskey, "BoldAsColour", 0); conf_set_int(conf, CONF_bold_style, i+1);
+    i = gppi_raw(sesskey, "BoldAsColour", 1); conf_set_int(conf, CONF_bold_style, i+1);
 
     for (i = 0; i < 22; i++) {
 	static const char *const defaults[] = {
@@ -1058,6 +1106,10 @@ void load_open_settings(void *sesskey, Conf *conf)
     gppi(sesskey, "SerialParity", SER_PAR_NONE, conf, CONF_serparity);
     gppi(sesskey, "SerialFlowControl", SER_FLOW_XONXOFF, conf, CONF_serflow);
     gppi(sesskey, "CygtermAutoPath", 1, conf, CONF_cygautopath);
+<<<<<<< HEAD
+=======
+    gppi(sesskey, "Cygterm64", 0, conf, CONF_cygterm64);
+>>>>>>> upstream/master
     gpps(sesskey, "CygtermCommand", "-", conf, CONF_cygcmd);
     gpps(sesskey, "WindowClass", "", conf, CONF_winclass);
 }
@@ -1067,15 +1119,19 @@ void do_defaults(char *session, Conf *conf)
     load_settings(session, conf);
 }
 
+<<<<<<< HEAD
 /*
  * HACK: PuttyTray / PuTTY File
  * Quick hack to load defaults from file
  */
+=======
+>>>>>>> upstream/master
 void do_defaults_file(char *session, Conf * cfg)
 {
     load_settings_file(session, cfg);
 }
 
+<<<<<<< HEAD
 /*
  * HACK: PuttyTray / PuTTY File
  * Quick hack to load defaults from file
@@ -1083,6 +1139,14 @@ void do_defaults_file(char *session, Conf * cfg)
 void do_defaults_file(char *session, Config * cfg)
 {
     load_settings_file(session, cfg);
+=======
+/** Load from registry, and, if that doesn't make it launchable, load from the file */
+void do_defaults_then_file(char *session, Conf *conf)
+{
+    do_defaults(session, conf);
+    if (conf && !conf_launchable(conf))
+        do_defaults_file(session, conf);
+>>>>>>> upstream/master
 }
 
 static int sessioncmp(const void *av, const void *bv)
@@ -1135,6 +1199,7 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 			bufsize = buflen + len + 2048;
 			list->buffer = sresize(list->buffer, bufsize, char);
 		    }
+                    assert(list->buffer);
 		    strcpy(list->buffer + buflen, otherbuf);
 		    buflen += strlen(list->buffer + buflen) + 1;
 		}
@@ -1163,6 +1228,10 @@ int get_sesslist(struct sesslist *list, int allocate, int storagetype) // HACK: 
 		            bufsize = buflen + len + 2048;
 		            list->buffer = sresize(list->buffer, bufsize, char);
 		        }
+<<<<<<< HEAD
+=======
+                        assert(list->buffer);
+>>>>>>> upstream/master
 		        strcpy(list->buffer + buflen, otherbuf);
 		        buflen += strlen(list->buffer + buflen) + 1;
 		    }

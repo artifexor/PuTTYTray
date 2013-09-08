@@ -63,6 +63,22 @@ void modalfatalbox(char *p, ...)
     }
     cleanup_exit(1);
 }
+void nonfatal(char *p, ...)
+{
+    struct termios cf;
+    va_list ap;
+    premsg(&cf);
+    fprintf(stderr, "ERROR: ");
+    va_start(ap, p);
+    vfprintf(stderr, p, ap);
+    va_end(ap);
+    fputc('\n', stderr);
+    postmsg(&cf);
+    if (logctx) {
+        log_free(logctx);
+        logctx = NULL;
+    }
+}
 void connection_fatal(void *frontend, char *p, ...)
 {
     struct termios cf;
@@ -380,20 +396,18 @@ int try_output(int is_stderr)
     bufchain *chain = (is_stderr ? &stderr_data : &stdout_data);
     int fd = (is_stderr ? STDERR_FILENO : STDOUT_FILENO);
     void *senddata;
-    int sendlen, ret, fl;
+    int sendlen, ret;
 
     if (bufchain_size(chain) > 0) {
-        fl = fcntl(fd, F_GETFL);
-        if (fl != -1 && !(fl & O_NONBLOCK))
-            fcntl(fd, F_SETFL, fl | O_NONBLOCK);
+        int prev_nonblock = nonblock(fd);
         do {
             bufchain_prefix(chain, &senddata, &sendlen);
             ret = write(fd, senddata, sendlen);
             if (ret > 0)
                 bufchain_consume(chain, ret);
         } while (ret == sendlen && bufchain_size(chain) != 0);
-        if (fl != -1 && !(fl & O_NONBLOCK))
-            fcntl(fd, F_SETFL, fl);
+        if (!prev_nonblock)
+            no_nonblock(fd);
         if (ret < 0 && errno != EAGAIN) {
             perror(is_stderr ? "stderr: write" : "stdout: write");
             exit(1);
@@ -597,7 +611,7 @@ int main(int argc, char **argv)
     struct winsize size;
 
     fdlist = NULL;
-    fdcount = fdsize = 0;
+    fdsize = 0;
     /*
      * Initialise port and protocol to sensible defaults. (These
      * will be overridden by more or less anything.)
@@ -1000,6 +1014,7 @@ int main(int argc, char **argv)
 	if (i > fdsize) {
 	    fdsize = i + 16;
 	    fdlist = sresize(fdlist, fdsize, int);
+            assert(fdlist);
 	}
 
 	/*

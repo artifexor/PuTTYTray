@@ -9,6 +9,14 @@
 #include "putty.h"
 #include "dialog.h"
 #include "storage.h"
+#include "urlhack.h"
+
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex);
+
+enum {
+    CHILD_KEYGEN,
+    CHILD_AGENT,
+};
 
 static void about_handler(union control *ctrl, void *dlg,
 			  void *data, int event)
@@ -18,6 +26,33 @@ static void about_handler(union control *ctrl, void *dlg,
     if (event == EVENT_ACTION) {
 	modal_about_box(*hwndp);
     }
+}
+
+static void child_launch_handler(union control *ctrl, void *dlg,
+			         void *data, int event)
+{
+    char *arg;
+    char us[MAX_PATH + 16];
+    int child = ctrl->generic.context.i;
+
+    if (event != EVENT_ACTION)
+        return;
+
+    switch (child) {
+    case CHILD_AGENT:
+        arg = "--as-agent";
+        break;
+    case CHILD_KEYGEN:
+        arg = "--as-gen";
+        break;
+    default:
+        assert(!"No other enum values");
+    }
+
+    if (!GetModuleFileName(NULL, us, MAX_PATH))
+        return;
+
+    ShellExecute(hwnd, NULL, us, arg, "", SW_SHOW);
 }
 
 static void help_handler(union control *ctrl, void *dlg,
@@ -40,14 +75,18 @@ static void variable_pitch_handler(union control *ctrl, void *dlg,
     }
 }
 
+<<<<<<< HEAD
 /*
  * HACK: PuttyTray / Session Icon
  */ 
+=======
+>>>>>>> upstream/master
 static void window_icon_handler(union control *ctrl, void *dlg, void *data, int event)
 {
     Conf *conf = (Conf *) data;
 
     if (event == EVENT_ACTION) {
+<<<<<<< HEAD
 		char buf[512], iname[512], *ipointer;
 		int iindex;
 		memset(&iname, 0, sizeof(iname));
@@ -65,6 +104,29 @@ static void window_icon_handler(union control *ctrl, void *dlg, void *data, int 
 		};
 	};
 };
+=======
+	char buf[512], iname[512], *ipointer;
+	DWORD iindex;
+
+	memset(&iname, 0, sizeof(iname));
+	memset(&buf, 0, sizeof(buf));
+	iindex = 0;
+	ipointer = iname;
+	if (dlg_pick_icon(dlg, &ipointer, sizeof(iname), &iindex) /*&& iname[0]*/) {
+            Filename *filename;
+	    if (iname[0]) {
+		sprintf(buf, "%s,%d", iname, iindex);
+	    } else {
+		sprintf(buf, "%s", iname);
+	    }
+	    dlg_icon_set((union control *) ctrl->button.context.p, dlg, buf);
+            filename = filename_from_str(buf);
+            conf_set_filename(conf, CONF_win_icon, filename);
+            filename_free(filename);
+	}
+    }
+}
+>>>>>>> upstream/master
 
 void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 			  int midsession, int protocol)
@@ -72,20 +134,32 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     struct controlset *s;
     union control *c;
     char *str;
+    int col = 0;
 
-    if (!midsession) {
-	/*
-	 * Add the About and Help buttons to the standard panel.
-	 */
-	s = ctrl_getset(b, "", "", "");
-	c = ctrl_pushbutton(s, "About", 'a', HELPCTX(no_help),
+    /*
+     * Add the About and Help buttons to the standard panel.
+     * There isn't space for all four, so drop
+     *  the about button if it can't fit.
+     */
+    s = ctrl_getset(b, "", "", "");
+    if (!has_help) {
+        c = ctrl_pushbutton(s, "About", NO_SHORTCUT, HELPCTX(no_help),
 			    about_handler, P(hwndp));
-	c->generic.column = 0;
-	if (has_help) {
-	    c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
-				help_handler, P(hwndp));
-	    c->generic.column = 1;
-	}
+        c->generic.column = col++;
+    }
+
+    c = ctrl_pushbutton(s, "Keygen", NO_SHORTCUT, HELPCTX(no_help),
+                        child_launch_handler, I(CHILD_KEYGEN));
+    c->generic.column = col++;
+
+    c = ctrl_pushbutton(s, "Agent", NO_SHORTCUT, HELPCTX(no_help),
+			child_launch_handler, I(CHILD_AGENT));
+    c->generic.column = col++;
+
+    if (has_help) {
+	c = ctrl_pushbutton(s, "Help", 'h', HELPCTX(no_help),
+			    help_handler, P(hwndp));
+	c->generic.column = col++;
     }
 
     /*
@@ -317,9 +391,10 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		      HELPCTX(selection_buttons),
 		      conf_radiobutton_handler,
 		      I(CONF_mouse_is_xterm),
+		      "Default (Middle pastes, Right brings up menu)", I(3),
 		      "Windows (Middle extends, Right brings up menu)", I(2),
 		      "Compromise (Middle extends, Right pastes)", I(0),
-		      "xterm (Right extends, Middle pastes)", I(1), NULL);
+		      "xterm (Middle pastes, Right extends)", I(1), NULL);
     /*
      * This really ought to go at the _top_ of its box, not the
      * bottom, so we'll just do some shuffling now we've set it
@@ -340,7 +415,9 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     ctrl_checkbox(s, "Use system colours", 's',
                   HELPCTX(colours_system),
                   conf_checkbox_handler, I(CONF_system_colour));
-
+    ctrl_editbox(s, "Window opacity (50-255)", 't', 30,
+                  HELPCTX(no_help),
+                  conf_editbox_handler, I(CONF_transparency), I(-1));
 
     /*
      * Resize-by-changing-font is a Windows insanity.
@@ -379,6 +456,7 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 		  conf_checkbox_handler,
 		  I(CONF_fullscreenonaltenter));
 
+<<<<<<< HEAD
     s = ctrl_getset(b, "Window", "main", "Window transparency options");
     ctrl_editbox(s, "Opacity (50-255)", 't', 30, HELPCTX(no_help), conf_editbox_handler, I(CONF_transparency), I(-1));
 
@@ -402,6 +480,16 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	 * HACK: PuttyTray / Session Icon
 	 */
 	s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
+=======
+    s = ctrl_getset(b, "Connection", "reconnect", "Reconnect options");
+    ctrl_checkbox(s, "Attempt to reconnect on connection failure", 'f', HELPCTX(no_help), conf_checkbox_handler, I(CONF_failure_reconnect));
+    ctrl_checkbox(s, "Attempt to reconnect on system wakeup", 'w', HELPCTX(no_help), conf_checkbox_handler, I(CONF_wakeup_reconnect));
+    ctrl_editbox(s, "Wakeup reconnect delay (milliseconds)", NO_SHORTCUT, 20,
+                HELPCTX(no_help),
+                conf_editbox_handler, I(CONF_wakeup_reconnect_delay), I(-1));
+
+    s = ctrl_getset(b, "Window/Behaviour", "icon", "Adjust the icon");
+>>>>>>> upstream/master
     ctrl_columns(s, 3, 40, 20, 40);
     c = ctrl_text(s, "Window / tray icon:", HELPCTX(appearance_title));
     c->generic.column = 0;
@@ -413,6 +501,22 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
     c->generic.column = 2;
     ctrl_columns(s, 1, 100);
 
+<<<<<<< HEAD
+=======
+    ctrl_radiobuttons(s, "Show tray icon:", NO_SHORTCUT, 4,
+                      HELPCTX(no_help),
+                      conf_radiobutton_handler,
+                      I(CONF_tray),
+                      "Normal", 'n', I(TRAY_NORMAL),
+                      "Always", 'y', I(TRAY_ALWAYS),
+                      "Never", 'r', I(TRAY_NEVER),
+                      "On start", 's', I(TRAY_START), NULL);
+
+    ctrl_checkbox(s, "Accept single-click to restore from tray", NO_SHORTCUT,
+		  HELPCTX(no_help),
+		  conf_checkbox_handler, I(CONF_tray_restore));
+
+>>>>>>> upstream/master
 	/*
 	 * HACK: PuttyTray / Nutty
 	 * Hyperlink stuff: The Window/Hyperlinks panel.
@@ -446,15 +550,29 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 
 	s = ctrl_getset(b, "Window/Hyperlinks", "regexp", "Regular expression");
 
+<<<<<<< HEAD
 	ctrl_checkbox(s, "Use the default regular expression", 'r',
 		  HELPCTX(no_help),
 		  conf_checkbox_handler, I(CONF_url_defregex));
 
 	ctrl_editbox(s, "or specify your own:", NO_SHORTCUT, 100,
+=======
+	ctrl_radiobuttons(s, "URL selection:", NO_SHORTCUT, 1,
+		    HELPCTX(no_help),
+		    conf_radiobutton_handler,
+                    I(CONF_url_defregex),
+		    "Select sensible URLs", NO_SHORTCUT, I(URLHACK_REGEX_CLASSIC),
+		    "Select nearly any URL", NO_SHORTCUT, I(URLHACK_REGEX_LIBERAL),
+		    "Custom", NO_SHORTCUT, I(URLHACK_REGEX_CUSTOM),
+		    NULL);
+
+	ctrl_editbox(s, "Customise regex:", NO_SHORTCUT, 100,
+>>>>>>> upstream/master
 		 HELPCTX(no_help),
 		 conf_editbox_handler, I(CONF_url_regex),
 		 I(1));
 
+<<<<<<< HEAD
 	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
 		  HELPCTX(no_help));
 
@@ -546,6 +664,8 @@ void win_setup_config_box(struct controlbox *b, HWND *hwndp, int has_help,
 	ctrl_text(s, "The single white space will be cropped in front of the link, if exists.",
 		  HELPCTX(no_help));
 
+=======
+>>>>>>> upstream/master
     /*
      * Windows supports a local-command proxy. This also means we
      * must adjust the text on the `Telnet command' control.

@@ -277,8 +277,8 @@ static int plug_proxy_accepting (Plug p, OSSocket sock)
  * This function can accept a NULL pointer as `addr', in which case
  * it will only check the host name.
  */
-static int proxy_for_destination (SockAddr addr, char *hostname, int port,
-				  Conf *conf)
+static int proxy_for_destination (SockAddr addr, const char *hostname,
+                                  int port, Conf *conf)
 {
     int s = 0, e = 0;
     char hostip[64];
@@ -473,6 +473,8 @@ Socket new_connection(SockAddr addr, char *hostname,
 				   conf_get_int(conf, CONF_addressfamily));
 	if (sk_addr_error(proxy_addr) != NULL) {
 	    ret->error = "Proxy error: Unable to resolve proxy host name";
+            sfree(pplug);
+            sk_addr_free(proxy_addr);
 	    return (Socket)ret;
 	}
 	sfree(proxy_canonical_name);

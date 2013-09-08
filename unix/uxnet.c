@@ -80,8 +80,6 @@ struct Socket_tag {
     int connected;		       /* irrelevant for listening sockets */
     int writable;
     int frozen; /* this causes readability notifications to be ignored */
-    int frozen_readable; /* this means we missed at least one readability
-			  * notification while we were frozen */
     int localhost_only;		       /* for listening sockets */
     char oobdata[1];
     int sending_oob;
@@ -232,9 +230,9 @@ SockAddr sk_namelookup(const char *host, char **canonicalname, int address_famil
     ret->superfamily = IP;
     *realhost = '\0';
     if (ret->ais->ai_canonname != NULL)
-	strncat(realhost, ret->ais->ai_canonname, sizeof(realhost) - 1);
+	strncpy(realhost, ret->ais->ai_canonname, sizeof(realhost) - 1);
     else
-	strncat(realhost, host, sizeof(realhost) - 1);
+	strncpy(realhost, host, sizeof(realhost) - 1);
 #else
     if ((a = inet_addr(host)) == (unsigned long)(in_addr_t)(-1)) {
 	/*
@@ -343,7 +341,7 @@ void sk_getaddr(SockAddr addr, char *buf, int buflen)
     }
 }
 
-int sk_hostname_is_local(char *name)
+int sk_hostname_is_local(const char *name)
 {
     return !strcmp(name, "localhost") ||
 	   !strcmp(name, "::1") ||
@@ -417,13 +415,15 @@ void sk_addrcopy(SockAddr addr, char *buf)
     family = SOCKADDR_FAMILY(addr, step);
 
 #ifndef NO_IPV6
-    if (family == AF_INET)
+    if (family == AF_INET) {
+        assert(step.ai);
 	memcpy(buf, &((struct sockaddr_in *)step.ai->ai_addr)->sin_addr,
 	       sizeof(struct in_addr));
-    else if (family == AF_INET6)
+    } else if (family == AF_INET6) {
+        assert(step.ai);
 	memcpy(buf, &((struct sockaddr_in6 *)step.ai->ai_addr)->sin6_addr,
 	       sizeof(struct in6_addr));
-    else
+    } else
 	assert(FALSE);
 #else
     struct in_addr a;
@@ -507,7 +507,6 @@ Socket sk_register(OSSocket sockfd, Plug plug)
     ret->writable = 1;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 1;
-    ret->frozen_readable = 0;
     ret->localhost_only = 0;	       /* unused, but best init anyway */
     ret->pending_error = 0;
     ret->oobpending = FALSE;
@@ -540,7 +539,7 @@ static int try_connect(Actual_Socket sock)
     const union sockaddr_union *sa;
     int err = 0;
     short localport;
-    int fl, salen, family;
+    int salen, family;
 
     /*
      * Remove the socket from the tree before we overwrite its
@@ -572,17 +571,32 @@ static int try_connect(Actual_Socket sock)
 
     if (sock->oobinline) {
 	int b = TRUE;
-	setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (void *) &b, sizeof(b));
+	if (setsockopt(s, SOL_SOCKET, SO_OOBINLINE,
+                       (void *) &b, sizeof(b)) < 0) {
+            err = errno;
+            close(s);
+            goto ret;
+        }
     }
 
     if (sock->nodelay) {
 	int b = TRUE;
-	setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (void *) &b, sizeof(b));
+	if (setsockopt(s, IPPROTO_TCP, TCP_NODELAY,
+                       (void *) &b, sizeof(b)) < 0) {
+            err = errno;
+            close(s);
+            goto ret;
+        }
     }
 
     if (sock->keepalive) {
 	int b = TRUE;
-	setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *) &b, sizeof(b));
+	if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE,
+                       (void *) &b, sizeof(b)) < 0) {
+            err = errno;
+            close(s);
+            goto ret;
+        }
     }
 
     /*
@@ -646,12 +660,14 @@ static int try_connect(Actual_Socket sock)
 #ifndef NO_IPV6
       case AF_INET:
 	/* XXX would be better to have got getaddrinfo() to fill in the port. */
+        assert(sock->step.ai);
 	((struct sockaddr_in *)sock->step.ai->ai_addr)->sin_port =
 	    htons(sock->port);
 	sa = (const union sockaddr_union *)sock->step.ai->ai_addr;
 	salen = sock->step.ai->ai_addrlen;
 	break;
       case AF_INET6:
+        assert(sock->step.ai);
 	((struct sockaddr_in *)sock->step.ai->ai_addr)->sin_port =
 	    htons(sock->port);
 	sa = (const union sockaddr_union *)sock->step.ai->ai_addr;
@@ -680,9 +696,7 @@ static int try_connect(Actual_Socket sock)
 	exit(1); /* XXX: GCC doesn't understand assert() on some systems. */
     }
 
-    fl = fcntl(s, F_GETFL);
-    if (fl != -1)
-	fcntl(s, F_SETFL, fl | O_NONBLOCK);
+    nonblock(s);
 
     if ((connect(s, &(sa->sa), salen)) < 0) {
 	if ( errno != EINPROGRESS ) {
@@ -730,7 +744,6 @@ Socket sk_new(SockAddr addr, int port, int privport, int oobinline,
     ret->writable = 0;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 0;
-    ret->frozen_readable = 0;
     ret->localhost_only = 0;	       /* unused, but best init anyway */
     ret->pending_error = 0;
     ret->parent = ret->child = NULL;
@@ -784,7 +797,6 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
     ret->writable = 0;		       /* to start with */
     ret->sending_oob = 0;
     ret->frozen = 0;
-    ret->frozen_readable = 0;
     ret->localhost_only = local_host_only;
     ret->pending_error = 0;
     ret->parent = ret->child = NULL;
@@ -835,7 +847,12 @@ Socket sk_newlistener(char *srcaddr, int port, Plug plug, int local_host_only, i
 
     ret->oobinline = 0;
 
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&on, sizeof(on));
+    if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR,
+                   (const char *)&on, sizeof(on)) < 0) {
+        ret->error = strerror(errno);
+        close(s);
+        return (Socket) ret;
+    }
 
     retcode = -1;
     addr = NULL; addrlen = -1;         /* placate optimiser */
@@ -1215,7 +1232,6 @@ static int net_select_result(int fd, int event)
                 }
 		return plug_receive(s->plug, 2, buf, ret);
 	    }
-	    break;
 	}
 
 	/*
@@ -1235,7 +1251,6 @@ static int net_select_result(int fd, int event)
 	    union sockaddr_union su;
 	    socklen_t addrlen = sizeof(su);
 	    int t;  /* socket of connection */
-            int fl;
 
 	    memset(&su, 0, addrlen);
 	    t = accept(s->s, &su.sa, &addrlen);
@@ -1243,9 +1258,7 @@ static int net_select_result(int fd, int event)
 		break;
 	    }
 
-            fl = fcntl(t, F_GETFL);
-            if (fl != -1)
-                fcntl(t, F_SETFL, fl | O_NONBLOCK);
+            nonblock(t);
 
 	    if (s->localhost_only &&
 		!sockaddr_is_loopback(&su.sa)) {
@@ -1262,10 +1275,8 @@ static int net_select_result(int fd, int event)
 	 */
 
 	/* In the case the socket is still frozen, we don't even bother */
-	if (s->frozen) {
-	    s->frozen_readable = 1;
+	if (s->frozen)
 	    break;
-	}
 
 	/*
 	 * We have received data on the socket. For an oobinline
@@ -1418,11 +1429,6 @@ static void sk_tcp_set_frozen(Socket sock, int is_frozen)
     if (s->frozen == is_frozen)
 	return;
     s->frozen = is_frozen;
-    if (!is_frozen && s->frozen_readable) {
-	char c;
-	recv(s->s, &c, 1, MSG_PEEK);
-    }
-    s->frozen_readable = 0;
     uxsel_tell(s);
 }
 

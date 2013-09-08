@@ -3389,6 +3389,13 @@ void fatal_message_box(void *window, char *msg)
                "OK", 'o', 1, 1, NULL);
 }
 
+void nonfatal_message_box(void *window, char *msg)
+{
+    messagebox(window, "PuTTY Error", msg,
+               string_width("REASONABLY LONG LINE OF TEXT FOR BASIC SANITY"),
+               "OK", 'o', 1, 1, NULL);
+}
+
 void fatalbox(char *p, ...)
 {
     va_list ap;
@@ -3399,6 +3406,17 @@ void fatalbox(char *p, ...)
     fatal_message_box(NULL, msg);
     sfree(msg);
     cleanup_exit(1);
+}
+
+void nonfatal(char *p, ...)
+{
+    va_list ap;
+    char *msg;
+    va_start(ap, p);
+    msg = dupvprintf(p, ap);
+    va_end(ap);
+    fatal_message_box(NULL, msg);
+    sfree(msg);
 }
 
 static GtkWidget *aboutbox = NULL;
@@ -3414,7 +3432,7 @@ static void licence_clicked(GtkButton *button, gpointer data)
     char *title;
 
     char *licence =
-	"Copyright 1997-2012 Simon Tatham.\n\n"
+	"Copyright 1997-2013 Simon Tatham.\n\n"
 
 	"Portions copyright Robert de Bath, Joris van Rantwijk, Delian "
 	"Delchev, Andreas Schultz, Jeroen Massar, Wez Furlong, Nicolas "
@@ -3495,7 +3513,7 @@ void about_box(void *window)
 		       w, FALSE, FALSE, 5);
     gtk_widget_show(w);
 
-    w = gtk_label_new("Copyright 1997-2012 Simon Tatham. All rights reserved");
+    w = gtk_label_new("Copyright 1997-2013 Simon Tatham. All rights reserved");
     gtk_box_pack_start(GTK_BOX(GTK_DIALOG(aboutbox)->vbox),
 		       w, FALSE, FALSE, 5);
     gtk_widget_show(w);

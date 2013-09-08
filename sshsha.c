@@ -28,6 +28,21 @@ void SHATransform(word32 * digest, word32 * block)
     word32 a, b, c, d, e;
     int t;
 
+#ifdef RANDOM_DIAGNOSTICS
+    {
+        extern int random_diagnostics;
+        if (random_diagnostics) {
+            int i;
+            printf("SHATransform:");
+            for (i = 0; i < 5; i++)
+                printf(" %08x", digest[i]);
+            printf(" +");
+            for (i = 0; i < 16; i++)
+                printf(" %08x", block[i]);
+        }
+    }
+#endif
+
     for (t = 0; t < 16; t++)
 	w[t] = block[t];
 
@@ -83,6 +98,19 @@ void SHATransform(word32 * digest, word32 * block)
     digest[2] += c;
     digest[3] += d;
     digest[4] += e;
+
+#ifdef RANDOM_DIAGNOSTICS
+    {
+        extern int random_diagnostics;
+        if (random_diagnostics) {
+            int i;
+            printf(" =");
+            for (i = 0; i < 5; i++)
+                printf(" %08x", digest[i]);
+            printf("\n");
+        }
+    }
+#endif
 }
 
 /* ----------------------------------------------------------------------
@@ -98,9 +126,9 @@ void SHA_Init(SHA_State * s)
     s->lenhi = s->lenlo = 0;
 }
 
-void SHA_Bytes(SHA_State * s, void *p, int len)
+void SHA_Bytes(SHA_State * s, const void *p, int len)
 {
-    unsigned char *q = (unsigned char *) p;
+    const unsigned char *q = (const unsigned char *) p;
     uint32 wordblock[16];
     uint32 lenw = len;
     int i;
@@ -179,7 +207,7 @@ void SHA_Final(SHA_State * s, unsigned char *output)
     }
 }
 
-void SHA_Simple(void *p, int len, unsigned char *output)
+void SHA_Simple(const void *p, int len, unsigned char *output)
 {
     SHA_State s;
 

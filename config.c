@@ -155,16 +155,23 @@ void conf_fontsel_handler(union control *ctrl, void *dlg,
     }
 }
 
+<<<<<<< HEAD
 /*
  * HACK: PuttyTray / PuTTY File
  * Define and struct moved up here so they can be used in storagetype_handler
  */
 #define SAVEDSESSION_LEN 2048
+=======
+>>>>>>> upstream/master
 struct sessionsaver_data {
     union control *editbox, *listbox, *loadbutton, *savebutton, *delbutton;
     union control *okbutton, *cancelbutton;
     struct sesslist sesslist;
     int midsession;
+<<<<<<< HEAD
+=======
+    char *savedsession;     /* the current contents of ssd->editbox */
+>>>>>>> upstream/master
 };
 
 static void config_host_handler(union control *ctrl, void *dlg,
@@ -185,9 +192,18 @@ static void config_host_handler(union control *ctrl, void *dlg,
 	     */
 	    dlg_label_change(ctrl, dlg, "Serial line");
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_serline));
+<<<<<<< HEAD
 	} else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
 	    dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
+=======
+        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
+            dlg_label_change(ctrl, dlg, "Command (use - for login shell)");
+            dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_cygcmd));
+        } else if (conf_get_int(conf, CONF_protocol) == PROT_ADB) {
+            dlg_label_change(ctrl, dlg, "-a: any, -d: usb, -e: emulator, or :serial");
+            dlg_editbox_set(ctrl, dlg, "-a");
+>>>>>>> upstream/master
 	} else {
 	    dlg_label_change(ctrl, dlg, HOST_BOX_TITLE);
 	    dlg_editbox_set(ctrl, dlg, conf_get_str(conf, CONF_host));
@@ -196,8 +212,13 @@ static void config_host_handler(union control *ctrl, void *dlg,
 	char *s = dlg_editbox_get(ctrl, dlg);
 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	    conf_set_str(conf, CONF_serline, s);
+<<<<<<< HEAD
 	else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
 	    conf_set_str(conf, CONF_cygcmd, s);
+=======
+        else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
+            conf_set_str(conf, CONF_cygcmd, s);
+>>>>>>> upstream/master
 	else
 	    conf_set_str(conf, CONF_host, s);
 	sfree(s);
@@ -223,9 +244,15 @@ static void config_port_handler(union control *ctrl, void *dlg,
 	     */
 	    dlg_label_change(ctrl, dlg, "Speed");
 	    sprintf(buf, "%d", conf_get_int(conf, CONF_serspeed));
+<<<<<<< HEAD
 	} else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
 	    dlg_label_change(ctrl, dlg, "Port (ignored)");
 	    strcpy(buf, "-");
+=======
+        } else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM) {
+            dlg_label_change(ctrl, dlg, "Port (ignored)");
+            strcpy(buf, "-");
+>>>>>>> upstream/master
 	} else {
 	    dlg_label_change(ctrl, dlg, PORT_BOX_TITLE);
 	    if (conf_get_int(conf, CONF_port) != 0)
@@ -242,8 +269,13 @@ static void config_port_handler(union control *ctrl, void *dlg,
 
 	if (conf_get_int(conf, CONF_protocol) == PROT_SERIAL)
 	    conf_set_int(conf, CONF_serspeed, i);
+<<<<<<< HEAD
 	else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
 	    ;
+=======
+        else if (conf_get_int(conf, CONF_protocol) == PROT_CYGTERM)
+            ;
+>>>>>>> upstream/master
 	else
 	    conf_set_int(conf, CONF_port, i);
     }
@@ -648,13 +680,22 @@ static void sshbug_handler(union control *ctrl, void *dlg,
     }
 }
 
+<<<<<<< HEAD
+=======
+static void sessionsaver_data_free(void *ssdv)
+{
+    struct sessionsaver_data *ssd = (struct sessionsaver_data *)ssdv;
+    sfree(ssd->savedsession);
+    sfree(ssd);
+}
+
+>>>>>>> upstream/master
 /* 
  * Helper function to load the session selected in the list box, if
  * any, as this is done in more than one place below. Returns 0 for
  * failure.
  */
 static int load_selected_session(struct sessionsaver_data *ssd,
-				 char *savedsession,
 				 void *dlg, Conf *conf, int *maybe_launch)
 {
     int i = dlg_listbox_index(ssd->listbox, dlg);
@@ -665,17 +706,10 @@ static int load_selected_session(struct sessionsaver_data *ssd,
     }
     isdef = !strcmp(ssd->sesslist.sessions[i], "Default Settings");
     load_settings(ssd->sesslist.sessions[i], conf);
-    if (!isdef) {
-	strncpy(savedsession, ssd->sesslist.sessions[i],
-		SAVEDSESSION_LEN);
-	savedsession[SAVEDSESSION_LEN-1] = '\0';
-	if (maybe_launch)
-	    *maybe_launch = TRUE;
-    } else {
-	savedsession[0] = '\0';
-	if (maybe_launch)
-	    *maybe_launch = FALSE;
-    }
+    sfree(ssd->savedsession);
+    ssd->savedsession = dupstr(isdef ? "" : ssd->sesslist.sessions[i]);
+    if (maybe_launch)
+        *maybe_launch = !isdef;
     dlg_refresh(NULL, dlg);
     /* Restore the selection, which might have been clobbered by
      * changing the value of the edit box. */
@@ -689,33 +723,10 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
     Conf *conf = (Conf *)data;
     struct sessionsaver_data *ssd =
 	(struct sessionsaver_data *)ctrl->generic.context.p;
-    char *savedsession;
-
-    /*
-     * The first time we're called in a new dialog, we must
-     * allocate space to store the current contents of the saved
-     * session edit box (since it must persist even when we switch
-     * panels, but is not part of the Conf).
-     *
-     * FIXME: this is disgusting, and we'd do much better to have
-     * the persistent storage be dynamically allocated and get rid
-     * of the arbitrary limit SAVEDSESSION_LEN. To do that would
-     * require a means of making sure the memory gets freed at the
-     * appropriate moment.
-     */
-    if (!ssd->editbox) {
-        savedsession = NULL;
-    } else if (!dlg_get_privdata(ssd->editbox, dlg)) {
-	savedsession = (char *)
-	    dlg_alloc_privdata(ssd->editbox, dlg, SAVEDSESSION_LEN);
-	savedsession[0] = '\0';
-    } else {
-	savedsession = dlg_get_privdata(ssd->editbox, dlg);
-    }
 
     if (event == EVENT_REFRESH) {
 	if (ctrl == ssd->editbox) {
-	    dlg_editbox_set(ctrl, dlg, savedsession);
+	    dlg_editbox_set(ctrl, dlg, ssd->savedsession);
 	} else if (ctrl == ssd->listbox) {
 	    int i;
 	    dlg_update_start(ctrl, dlg);
@@ -727,14 +738,13 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
     } else if (event == EVENT_VALCHANGE) {
         int top, bottom, halfway, i;
 	if (ctrl == ssd->editbox) {
-	    char *tmp = dlg_editbox_get(ctrl, dlg);
-	    strncpy(savedsession, tmp, SAVEDSESSION_LEN);
-	    sfree(tmp);
+            sfree(ssd->savedsession);
+            ssd->savedsession = dlg_editbox_get(ctrl, dlg);
 	    top = ssd->sesslist.nsessions;
 	    bottom = -1;
 	    while (top-bottom > 1) {
 	        halfway = (top+bottom)/2;
-	        i = strcmp(savedsession, ssd->sesslist.sessions[halfway]);
+	        i = strcmp(ssd->savedsession, ssd->sesslist.sessions[halfway]);
 	        if (i <= 0 ) {
 		    top = halfway;
 	        } else {
@@ -758,40 +768,41 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 	     * double-click on the list box _and_ that session
 	     * contains a hostname.
 	     */
-	    if (load_selected_session(ssd, savedsession, dlg, conf, &mbl) &&
+	    if (load_selected_session(ssd, dlg, conf, &mbl) &&
 		(mbl && ctrl == ssd->listbox && conf_launchable(conf))) {
 		dlg_end(dlg, 1);       /* it's all over, and succeeded */
 	    }
 	} else if (ctrl == ssd->savebutton) {
-	    int isdef = !strcmp(savedsession, "Default Settings");
-	    if (!savedsession[0]) {
+	    int isdef = !strcmp(ssd->savedsession, "Default Settings");
+	    if (!ssd->savedsession[0]) {
 		int i = dlg_listbox_index(ssd->listbox, dlg);
 		if (i < 0) {
 		    dlg_beep(dlg);
 		    return;
 		}
 		isdef = !strcmp(ssd->sesslist.sessions[i], "Default Settings");
-		if (!isdef) {
-		    strncpy(savedsession, ssd->sesslist.sessions[i],
-			    SAVEDSESSION_LEN);
-		    savedsession[SAVEDSESSION_LEN-1] = '\0';
-		} else {
-		    savedsession[0] = '\0';
-		}
+                sfree(ssd->savedsession);
+                ssd->savedsession = dupstr(isdef ? "" :
+                                           ssd->sesslist.sessions[i]);
 	    }
             {
-                char *errmsg = save_settings(savedsession, conf);
+                char *errmsg = save_settings(ssd->savedsession, conf);
                 if (errmsg) {
                     dlg_error_msg(dlg, errmsg);
                     sfree(errmsg);
                 }
             }
+<<<<<<< HEAD
 	    /*
              * HACK: PuttyTray / PuTTY File
              * Added storagetype to get_sesslist
              */
 	    get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
 	    get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+=======
+            get_sesslist(&ssd->sesslist, FALSE, conf_get_int(conf, CONF_session_storagetype));
+            get_sesslist(&ssd->sesslist, TRUE, conf_get_int(conf, CONF_session_storagetype));
+>>>>>>> upstream/master
 
 	    dlg_refresh(ssd->editbox, dlg);
 	    dlg_refresh(ssd->listbox, dlg);
@@ -829,8 +840,7 @@ static void sessionsaver_handler(union control *ctrl, void *dlg,
 		!conf_launchable(conf)) {
 		Conf *conf2 = conf_new();
 		int mbl = FALSE;
-		if (!load_selected_session(ssd, savedsession, dlg,
-					   conf2, &mbl)) {
+		if (!load_selected_session(ssd, dlg, conf2, &mbl)) {
 		    dlg_beep(dlg);
 		    conf_free(conf2);
 		    return;
@@ -925,7 +935,7 @@ static void colour_handler(union control *ctrl, void *dlg,
     Conf *conf = (Conf *)data;
     struct colour_data *cd =
 	(struct colour_data *)ctrl->generic.context.p;
-    int update = FALSE, clear = FALSE, r, g, b;
+    int update = FALSE, clear = FALSE, r = 0, g = 0, b = 0;
 
     if (event == EVENT_REFRESH) {
 	if (ctrl == cd->listbox) {
@@ -1207,9 +1217,23 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 		 val != NULL;
 		 val = conf_get_str_strs(conf, CONF_portfwd, key, &key)) {
 		char *p;
-                if (!strcmp(val, "D"))
-                    p = dupprintf("D%s\t", key+1);
-                else
+                if (!strcmp(val, "D")) {
+                    char *L;
+                    /*
+                     * A dynamic forwarding is stored as L12345=D or
+                     * 6L12345=D (since it's mutually exclusive with
+                     * L12345=anything else), but displayed as D12345
+                     * to match the fiction that 'Local', 'Remote' and
+                     * 'Dynamic' are three distinct modes and also to
+                     * align with OpenSSH's command line option syntax
+                     * that people will already be used to. So, for
+                     * display purposes, find the L in the key string
+                     * and turn it into a D.
+                     */
+                    p = dupprintf("%s\t", key);
+                    L = strchr(p, 'L');
+                    if (L) *L = 'D';
+                } else
                     p = dupprintf("%s\t%s", key, val);
 		dlg_listbox_add(ctrl, dlg, p);
 		sfree(p);
@@ -1336,7 +1360,11 @@ static void portfwd_handler(union control *ctrl, void *dlg,
 }
 
 void setup_config_box(struct controlbox *b, int midsession,
+<<<<<<< HEAD
 		      int protocol, int protcfginfo, int session_storagetype) // HACK: PuttyTray / PuTTY File - Added 'int session_storagetype'
+=======
+                     int protocol, int protcfginfo, int session_storagetype)
+>>>>>>> upstream/master
 {
     struct controlset *s;
     struct sessionsaver_data *ssd;
@@ -1350,8 +1378,10 @@ void setup_config_box(struct controlbox *b, int midsession,
     int current_storagetype; // HACK: PuttyTray / PuTTY File - stores storagetype after sess_list may or may not have switched between file/registry because registry is empty
 
     ssd = (struct sessionsaver_data *)
-	ctrl_alloc(b, sizeof(struct sessionsaver_data));
+	ctrl_alloc_with_free(b, sizeof(struct sessionsaver_data),
+                             sessionsaver_data_free);
     memset(ssd, 0, sizeof(*ssd));
+    ssd->savedsession = dupstr("");
     ssd->midsession = midsession;
 
     /*
@@ -1405,7 +1435,11 @@ void setup_config_box(struct controlbox *b, int midsession,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
 			      "Raw", 'w', I(PROT_RAW),
+<<<<<<< HEAD
 			      "Adb", 'a', I(PROT_ADB),
+=======
+                              "Adb", 'b', I(PROT_ADB),
+>>>>>>> upstream/master
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      NULL);
@@ -1414,7 +1448,11 @@ void setup_config_box(struct controlbox *b, int midsession,
 			      HELPCTX(session_hostname),
 			      config_protocolbuttons_handler, P(hp),
 			      "Raw", 'w', I(PROT_RAW),
+<<<<<<< HEAD
 			      "Adb", 'b', I(PROT_ADB),
+=======
+                              "Adb", 'b', I(PROT_ADB),
+>>>>>>> upstream/master
 			      "Telnet", 't', I(PROT_TELNET),
 			      "Rlogin", 'i', I(PROT_RLOGIN),
 			      "SSH", 's', I(PROT_SSH),
@@ -1434,8 +1472,8 @@ void setup_config_box(struct controlbox *b, int midsession,
     current_storagetype = get_sesslist(&ssd->sesslist, TRUE, session_storagetype + (midsession ? 0 : 2));
 
     ssd->editbox = ctrl_editbox(s, "Saved Sessions", 'e', 100,
-				HELPCTX(session_saved),
-				sessionsaver_handler, P(ssd), P(NULL));
+                                HELPCTX(session_saved),
+                                sessionsaver_handler, P(ssd), P(NULL));
     ssd->editbox->generic.column = 0;
     /* Reset columns so that the buttons are alongside the list, rather
      * than alongside that edit box. */
@@ -1484,6 +1522,7 @@ void setup_config_box(struct controlbox *b, int midsession,
      * In midsession, changing causes it to be reversed again (wrong). So don't.
      */
     if (midsession || current_storagetype == 0) {
+<<<<<<< HEAD
 	c = ctrl_radiobuttons(s, NULL, 'f', 2,
 			    HELPCTX(no_help),
 			    storagetype_handler,
@@ -1493,17 +1532,28 @@ void setup_config_box(struct controlbox *b, int midsession,
 			    HELPCTX(no_help),
 			    storagetype_handler,
 			    P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
+=======
+        c = ctrl_radiobuttons(s, NULL, 'f', 2,
+                            HELPCTX(no_help),
+                            storagetype_handler,
+                            P(ssd), "Sessions from registry", I(0), "Sessions from file", I(1), NULL);
+    } else {
+        c = ctrl_radiobuttons(s, NULL, 'f', 2,
+                            HELPCTX(no_help),
+                            storagetype_handler,
+                            P(ssd), "Sessions from file", I(1), "Sessions from registry", I(0), NULL);
+>>>>>>> upstream/master
     }
     /** HACK: END **/
 
     s = ctrl_getset(b, "Session", "otheropts", NULL);
-    c = ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,
-			  HELPCTX(session_coe),
-			  conf_radiobutton_handler,
-			  I(CONF_close_on_exit),
-			  "Always", I(FORCE_ON),
-			  "Never", I(FORCE_OFF),
-			  "Only on clean exit", I(AUTO), NULL);
+    ctrl_radiobuttons(s, "Close window on exit:", 'x', 4,
+                      HELPCTX(session_coe),
+                      conf_radiobutton_handler,
+                      I(CONF_close_on_exit),
+                      "Always", I(FORCE_ON),
+                      "Never", I(FORCE_OFF),
+                      "Only on clean exit", I(AUTO), NULL);
 
     /*
      * The Session/Logging panel.
@@ -1635,8 +1685,13 @@ void setup_config_box(struct controlbox *b, int midsession,
 		      conf_radiobutton_handler,
 		      I(CONF_funky_type),
 		      "ESC[n~", I(0), "Linux", I(1), "Xterm R6", I(2),
+<<<<<<< HEAD
 		      "VT400", I(3), "VT100+", I(4), "SCO", I(5), 
 		      "4690", I(6), NULL);
+=======
+                      "VT400", I(3), "VT100+", I(4), "SCO", I(5), 
+                      "4690", I(6), NULL);
+>>>>>>> upstream/master
 
     s = ctrl_getset(b, "Terminal/Keyboard", "appkeypad",
 		    "Application keypad settings:");
@@ -1877,8 +1932,13 @@ void setup_config_box(struct controlbox *b, int midsession,
 
     /* url-cut */
     ctrl_checkbox(s, "Detect URLs on selection and launch in browser", 'u',
+<<<<<<< HEAD
 		  HELPCTX(selection_shiftdrag),
 		  conf_checkbox_handler, I(CONF_copy_clipbd_url_reg));
+=======
+                  HELPCTX(selection_shiftdrag),
+                  conf_checkbox_handler, I(CONF_copy_clipbd_url_reg));
+>>>>>>> upstream/master
 
     ctrl_radiobuttons(s,
 		      "Default selection mode (Alt+drag does the other one):",
@@ -2032,7 +2092,11 @@ void setup_config_box(struct controlbox *b, int midsession,
 				  conf_radiobutton_handler,
 				  I(CONF_username_from_env),
 				  "Prompt", I(FALSE),
+<<<<<<< HEAD
 				  "Use system username", I(TRUE),
+=======
+                                  "Use system username", I(TRUE),
+>>>>>>> upstream/master
 				  NULL);
 	    }
 
@@ -2391,7 +2455,7 @@ void setup_config_box(struct controlbox *b, int midsession,
 		 * displayed. 
 		 */
 
-		ctrl_filesel(s, "User-supplied GSSAPI library path:", 's',
+		ctrl_filesel(s, "User-supplied GSSAPI library path:", NO_SHORTCUT,
 			     FILTER_DYNLIB_FILES, FALSE, "Select library file",
 			     HELPCTX(ssh_gssapi_libraries),
 			     conf_filesel_handler,

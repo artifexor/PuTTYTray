@@ -50,6 +50,7 @@ static void raw_log(Plug plug, int type, SockAddr addr, int port,
 	msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
 
     logevent(raw->frontend, msg);
+    sfree(msg);
 }
 
 static void raw_check_close(Raw raw)
@@ -131,7 +132,8 @@ static const char *raw_init(void *frontend_handle, void **backend_handle,
 	raw_log,
 	raw_closing,
 	raw_receive,
-	raw_sent
+	raw_sent,
+	NULL
     };
     SockAddr addr;
     const char *err;

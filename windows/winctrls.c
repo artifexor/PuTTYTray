@@ -454,6 +454,8 @@ char *staticwrap(struct ctlpos *cp, HWND hwnd, char *text, int *lines)
 
     if (lines) *lines = nlines;
 
+    sfree(pwidths);
+
     return ret;
 }
 
@@ -957,6 +959,23 @@ void prefslist(struct prefslist *hdl, struct ctlpos *cp, int lines,
 
     cp->ypos += totalheight + GAPBETWEEN;
 
+}
+
+void staticicon(struct ctlpos *cp, char *stext, char *iname, int id)
+{
+    RECT r;
+    HWND hcontrol;
+    HICON hicon;
+
+    r.left = GAPBETWEEN;
+    r.top = cp->ypos;
+    r.right = cp->width;
+    r.bottom = ICONHEIGHT;
+    cp->ypos += r.bottom + GAPBETWEEN;
+    hcontrol = doctl(cp, r, "STATIC",
+	        WS_CHILD | WS_VISIBLE | SS_ICON, 0, NULL, id);
+    hicon = extract_icon(iname, FALSE);
+    SendMessage(hcontrol, STM_SETICON, (WPARAM) hicon, 0);
 }
 
 /*
@@ -1544,6 +1563,7 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	    }
 	    sfree(escaped);
 	    break;
+<<<<<<< HEAD
 
 		/*
 		 * HACK: PuttyTray / Session Icon
@@ -1556,6 +1576,15 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 		}
 		//-----------------------------------------------------
 
+=======
+	  case CTRL_ICON:
+            {
+		Conf *conf = (Conf *)dp->data;
+		num_ids = 1;
+		staticicon(&pos, ctrl->icon.label, conf_get_filename(conf, ctrl->icon.context.i)->path, base_id);
+	    }
+            break;
+>>>>>>> upstream/master
 	  case CTRL_RADIO:
 	    num_ids = ctrl->radio.nbuttons + 1;   /* label as well */
 	    {
@@ -1703,7 +1732,9 @@ void winctrl_layout(struct dlgparam *dp, struct winctrls *wc,
 	    winctrl_add_shortcuts(dp, c);
 	    if (actual_base_id == base_id)
 		base_id += num_ids;
-	}
+	} else {
+            sfree(data);
+        }
 
 	if (colstart >= 0) {
 	    /*
@@ -2274,6 +2305,7 @@ void dlg_text_set(union control *ctrl, void *dlg, char const *text)
     SetDlgItemText(dp->hwnd, c->base_id, text);
 }
 
+<<<<<<< HEAD
 /*
  * HACK: PuttyTray / Session Icon
  */ 
@@ -2288,6 +2320,17 @@ void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
 	SendDlgItemMessage(dp->hwnd, c->base_id, STM_SETICON, (WPARAM) hicon, 0);
 };
 //--------------------------------
+=======
+void dlg_icon_set(union control *ctrl, void *dlg, char const *icon)
+{
+    HICON hicon;
+    struct dlgparam *dp = (struct dlgparam *) dlg;
+    struct winctrl *c = dlg_findbyctrl(dp, ctrl);
+    assert(c && c->ctrl->generic.type == CTRL_ICON);
+    hicon = extract_icon((char *) icon, FALSE);
+    SendDlgItemMessage(dp->hwnd, c->base_id, STM_SETICON, (WPARAM) hicon, 0);
+}
+>>>>>>> upstream/master
 
 void dlg_label_change(union control *ctrl, void *dlg, char const *text)
 {
@@ -2419,6 +2462,8 @@ void dlg_set_focus(union control *ctrl, void *dlg)
     struct winctrl *c = dlg_findbyctrl(dp, ctrl);
     int id;
     HWND ctl;
+    if (!c)
+        return;
     switch (ctrl->generic.type) {
       case CTRL_EDITBOX: id = c->base_id + 1; break;
       case CTRL_RADIO:
@@ -2682,6 +2727,7 @@ void *dlg_alloc_privdata(union control *ctrl, void *dlg, size_t size)
     return p->data;
 }
 
+<<<<<<< HEAD
 /*
  * HACK: PuttyTray / Session Icon
  */ 
@@ -2691,3 +2737,11 @@ int dlg_pick_icon(void *dlg, char **iname, int inamesize, int *iindex)
 	int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
 	return ret == IDOK ? TRUE : FALSE;
 };
+=======
+int dlg_pick_icon(void *dlg, char **iname, int inamesize, DWORD *iindex)
+{
+    struct dlgparam *dp = (struct dlgparam *) dlg;
+    int ret = SelectIcon(dp->hwnd, *iname, inamesize, iindex);
+    return ret == IDOK ? TRUE : FALSE;
+}
+>>>>>>> upstream/master

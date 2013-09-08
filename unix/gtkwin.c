@@ -36,6 +36,7 @@
 #include "putty.h"
 #include "terminal.h"
 #include "gtkfont.h"
+#include "urlhack.h"
 
 #define CAT2(x,y) x ## y
 #define CAT(x,y) CAT2(x,y)
@@ -1223,7 +1224,8 @@ gint key_event(GtkWidget *widget, GdkEventKey *event, gpointer data)
 void input_method_commit_event(GtkIMContext *imc, gchar *str, gpointer data)
 {
     struct gui_data *inst = (struct gui_data *)data;
-    lpage_send(inst->ldisc, CS_UTF8, str, strlen(str), 1);
+    if (inst->ldisc)
+        lpage_send(inst->ldisc, CS_UTF8, str, strlen(str), 1);
     show_mouseptr(inst, 0);
     term_seen_key_event(inst->term);
 }
@@ -1360,7 +1362,7 @@ void frontend_keypress(void *handle)
      * any keypress.
      */
     if (inst->exited)
-	exit(0);
+	cleanup_exit(0);
 }
 
 static gint idle_exit_func(gpointer data)
@@ -1379,13 +1381,11 @@ static gint idle_exit_func(gpointer data)
 	    ldisc_free(inst->ldisc);
 	    inst->ldisc = NULL;
 	}
-	if (inst->back) {
-	    inst->back->free(inst->backhandle);
-	    inst->backhandle = NULL;
-	    inst->back = NULL;
-            term_provide_resize_fn(inst->term, NULL, NULL);
-	    update_specials_menu(inst);
-	}
+        inst->back->free(inst->backhandle);
+        inst->backhandle = NULL;
+        inst->back = NULL;
+        term_provide_resize_fn(inst->term, NULL, NULL);
+        update_specials_menu(inst);
 	gtk_widget_set_sensitive(inst->restartitem, TRUE);
     }
 
@@ -1597,7 +1597,7 @@ void palette_set(void *frontend, int n, int r, int g, int b)
     struct gui_data *inst = (struct gui_data *)frontend;
     if (n >= 16)
 	n += 256 - 16;
-    if (n > NALLCOLOURS)
+    if (n >= NALLCOLOURS)
 	return;
     real_palette_set(inst, n, r, g, b);
     if (n == 258) {
@@ -1718,7 +1718,7 @@ char * retrieve_cutbuffer(int * nbytes)
     return ptr;
 }
 
-void write_clip(void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
+void write_clip(Terminal *terminal, void *frontend, wchar_t * data, int *attr, int len, int must_deselect)
 {
     struct gui_data *inst = (struct gui_data *)frontend;
     if (inst->pasteout_data)
@@ -2022,6 +2022,11 @@ static void set_window_titles(struct gui_data *inst)
     gtk_window_set_title(GTK_WINDOW(inst->window), inst->wintitle);
     if (!conf_get_int(inst->conf, CONF_win_name_always))
 	gdk_window_set_icon_name(inst->window->window, inst->icontitle);
+}
+
+void set_title_encoded(void *frontend, char *title, int encoding) {
+    // TODO
+    set_title(frontend, title);
 }
 
 void set_title(void *frontend, char *title)
@@ -2542,6 +2547,7 @@ void modalfatalbox(char *p, ...)
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
+    assert(!p);
     exit(1);
 }
 
@@ -3010,7 +3016,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
 	4, 12, 5, 13, 6, 14, 7, 15
     };
     struct gui_data *inst = (struct gui_data *)data;
-    char *title = dupcat(appname, " Reconfiguration", NULL);
+    char *title;
     Conf *oldconf, *newconf;
     int i, j, need_size;
 
@@ -3020,6 +3026,8 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
       return;
     else
       inst->reconfiguring = TRUE;
+
+    title = dupcat(appname, " Reconfiguration", NULL);
 
     oldconf = inst->conf;
     newconf = conf_copy(inst->conf);
@@ -3034,9 +3042,10 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
          * Flush the line discipline's edit buffer in the case
          * where local editing has just been disabled.
          */
-	ldisc_configure(inst->ldisc, inst->conf);
-        if (inst->ldisc)
+        if (inst->ldisc) {
+            ldisc_configure(inst->ldisc, inst->conf);
 	    ldisc_send(inst->ldisc, NULL, 0, 0);
+        }
         /* Pass new config data to the terminal */
         term_reconfig(inst->term, inst->conf);
         /* Pass new config data to the back end */
@@ -3069,7 +3078,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
 		 * repaint the space in between the window border
 		 * and the text area.
 		 */
-		if (i == 258) {
+		if (ww[i] == 258) {
 		    set_window_background(inst);
 		    draw_backing_rect(inst);
 		}
@@ -3134,6 +3143,7 @@ void change_settings_menuitem(GtkMenuItem *item, gpointer data)
                            string_width("Could not change fonts in terminal window:"),
                            "OK", 'o', +1, 1,
                            NULL);
+                sfree(msgboxtext);
                 sfree(errmsg);
             } else {
                 need_size = TRUE;
@@ -3228,6 +3238,7 @@ void fork_and_exec_self(struct gui_data *inst, int fd_to_close, ...)
     pid = fork();
     if (pid < 0) {
 	perror("fork");
+        sfree(args);
 	return;
     }
 
@@ -3261,6 +3272,7 @@ void fork_and_exec_self(struct gui_data *inst, int fd_to_close, ...)
 
     } else {
 	int status;
+        sfree(args);
 	waitpid(pid, &status, 0);
     }
 
@@ -3302,7 +3314,7 @@ void dup_session_menuitem(GtkMenuItem *item, gpointer gdata)
     }
 
     sprintf(option, "---[%d,%d]", pipefd[0], size);
-    fcntl(pipefd[0], F_SETFD, 0);
+    noncloexec(pipefd[0]);
     fork_and_exec_self(inst, pipefd[1], option, NULL);
     close(pipefd[0]);
 
@@ -3364,6 +3376,8 @@ int read_dupsession_data(struct gui_data *inst, Conf *conf, char *arg)
 	    pty_argv[n++] = dupstr(p);
 	}
     }
+
+    sfree(data);
 
     return 0;
 }
@@ -3595,6 +3609,9 @@ int pt_main(int argc, char **argv)
     inst->busy_status = BUSY_NOT;
     inst->conf = conf_new();
     inst->wintitle = inst->icontitle = NULL;
+
+    // oh this is a nasty global, which shouldn't be here at all
+    urlhack_init();
 
     /* defer any child exit handling until we're ready to deal with
      * it */

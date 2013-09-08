@@ -460,14 +460,14 @@ struct Packet;
 static struct Packet *ssh1_pkt_init(int pkt_type);
 static struct Packet *ssh2_pkt_init(int pkt_type);
 static void ssh_pkt_ensure(struct Packet *, int length);
-static void ssh_pkt_adddata(struct Packet *, void *data, int len);
+static void ssh_pkt_adddata(struct Packet *, const void *data, int len);
 static void ssh_pkt_addbyte(struct Packet *, unsigned char value);
 static void ssh2_pkt_addbool(struct Packet *, unsigned char value);
 static void ssh_pkt_adduint32(struct Packet *, unsigned long value);
 static void ssh_pkt_addstring_start(struct Packet *);
-static void ssh_pkt_addstring_str(struct Packet *, char *data);
-static void ssh_pkt_addstring_data(struct Packet *, char *data, int len);
-static void ssh_pkt_addstring(struct Packet *, char *data);
+static void ssh_pkt_addstring_str(struct Packet *, const char *data);
+static void ssh_pkt_addstring_data(struct Packet *, const char *data, int len);
+static void ssh_pkt_addstring(struct Packet *, const char *data);
 static unsigned char *ssh2_mpint_fmt(Bignum b, int *len);
 static void ssh1_pkt_addmp(struct Packet *, Bignum b);
 static void ssh2_pkt_addmp(struct Packet *, Bignum b);
@@ -1449,7 +1449,8 @@ static struct Packet *ssh2_rdpkt(Ssh ssh, unsigned char **data, int *datalen)
 	    /* See if that gives us a valid packet. */
 	    if (ssh->scmac->verresult(ssh->sc_mac_ctx,
 				      st->pktin->data + st->packetlen) &&
-		(st->len = GET_32BIT(st->pktin->data)) + 4 == st->packetlen)
+		((st->len = toint(GET_32BIT(st->pktin->data))) ==
+                 st->packetlen-4))
 		    break;
 	    if (st->packetlen >= OUR_V2_PACKETLIMIT) {
 		bombout(("No valid incoming packet found"));
@@ -1482,7 +1483,7 @@ static struct Packet *ssh2_rdpkt(Ssh ssh, unsigned char **data, int *datalen)
 	/*
 	 * Now get the length figure.
 	 */
-	st->len = GET_32BIT(st->pktin->data);
+	st->len = toint(GET_32BIT(st->pktin->data));
 
 	/*
 	 * _Completely_ silly lengths should be stomped on before they
@@ -1828,7 +1829,7 @@ static void ssh_pkt_ensure(struct Packet *pkt, int length)
 	if (body) pkt->body = pkt->data + offset;
     }
 }
-static void ssh_pkt_adddata(struct Packet *pkt, void *data, int len)
+static void ssh_pkt_adddata(struct Packet *pkt, const void *data, int len)
 {
     if (pkt->logmode != PKTLOG_EMIT) {
 	pkt->nblanks++;
@@ -1862,17 +1863,18 @@ static void ssh_pkt_addstring_start(struct Packet *pkt)
     ssh_pkt_adduint32(pkt, 0);
     pkt->savedpos = pkt->length;
 }
-static void ssh_pkt_addstring_str(struct Packet *pkt, char *data)
+static void ssh_pkt_addstring_str(struct Packet *pkt, const char *data)
 {
     ssh_pkt_adddata(pkt, data, strlen(data));
     PUT_32BIT(pkt->data + pkt->savedpos - 4, pkt->length - pkt->savedpos);
 }
-static void ssh_pkt_addstring_data(struct Packet *pkt, char *data, int len)
+static void ssh_pkt_addstring_data(struct Packet *pkt, const char *data,
+                                   int len)
 {
     ssh_pkt_adddata(pkt, data, len);
     PUT_32BIT(pkt->data + pkt->savedpos - 4, pkt->length - pkt->savedpos);
 }
-static void ssh_pkt_addstring(struct Packet *pkt, char *data)
+static void ssh_pkt_addstring(struct Packet *pkt, const char *data)
 {
     ssh_pkt_addstring_start(pkt);
     ssh_pkt_addstring_str(pkt, data);
@@ -2313,7 +2315,7 @@ static void ssh_pkt_getstring(struct Packet *pkt, char **p, int *length)
     *length = 0;
     if (pkt->length - pkt->savedpos < 4)
 	return;
-    len = GET_32BIT(pkt->body + pkt->savedpos);
+    len = toint(GET_32BIT(pkt->body + pkt->savedpos));
     if (len < 0)
 	return;
     *length = len;
@@ -2397,7 +2399,7 @@ static void ssh2_add_sigblob(Ssh ssh, struct Packet *pkt,
      * See if this is in fact an ssh-rsa signature and a buggy
      * server; otherwise we can just do this the easy way.
      */
-    if ((ssh->remote_bugs & BUG_SSH2_RSA_PADDING) &&
+    if ((ssh->remote_bugs & BUG_SSH2_RSA_PADDING) && pkblob_len > 4+7+4 &&
 	(GET_32BIT(pkblob) == 7 && !memcmp(pkblob+4, "ssh-rsa", 7))) {
 	int pos, len, siglen;
 
@@ -2406,8 +2408,15 @@ static void ssh2_add_sigblob(Ssh ssh, struct Packet *pkt,
 	 */
 
 	pos = 4+7;		       /* skip over "ssh-rsa" */
-	pos += 4 + GET_32BIT(pkblob+pos);   /* skip over exponent */
-	len = GET_32BIT(pkblob+pos);   /* find length of modulus */
+        len = toint(GET_32BIT(pkblob+pos)); /* get length of exponent */
+        if (len < 0 || len > pkblob_len - pos - 4)
+            goto give_up;
+	pos += 4 + len;                /* skip over exponent */
+        if (pkblob_len - pos < 4)
+            goto give_up;
+	len = toint(GET_32BIT(pkblob+pos)); /* find length of modulus */
+        if (len < 0 || len > pkblob_len - pos - 4)
+            goto give_up;
 	pos += 4;		       /* find modulus itself */
 	while (len > 0 && pkblob[pos] == 0)
 	    len--, pos++;
@@ -2417,7 +2426,11 @@ static void ssh2_add_sigblob(Ssh ssh, struct Packet *pkt,
 	 * Now find the signature integer.
 	 */
 	pos = 4+7;		       /* skip over "ssh-rsa" */
-	siglen = GET_32BIT(sigblob+pos);
+        if (sigblob_len < pos+4)
+            goto give_up;
+	siglen = toint(GET_32BIT(sigblob+pos));
+        if (siglen != sigblob_len - pos - 4)
+            goto give_up;
 	/* debug(("signature length is %d\n", siglen)); */
 
 	if (len != siglen) {
@@ -2439,7 +2452,10 @@ static void ssh2_add_sigblob(Ssh ssh, struct Packet *pkt,
 	    return;
 	}
 
-	/* Otherwise fall through and do it the easy way. */
+	/* Otherwise fall through and do it the easy way. We also come
+         * here as a fallback if we discover above that the key blob
+         * is misformatted in some way. */
+      give_up:;
     }
 
     ssh2_pkt_addstring_start(pkt);
@@ -3271,7 +3287,6 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 {
     int i, j, ret;
     unsigned char cookie[8], *ptr;
-    struct RSAKey servkey, hostkey;
     struct MD5Context md5c;
     struct do_ssh1_login_state {
 	int crLine;
@@ -3299,6 +3314,7 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 	int commentlen;
         int dlgret;
 	Filename *keyfile;
+        struct RSAKey servkey, hostkey;
     };
     crState(do_ssh1_login_state);
 
@@ -3321,8 +3337,8 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
     }
     memcpy(cookie, ptr, 8);
 
-    if (!ssh1_pkt_getrsakey(pktin, &servkey, &s->keystr1) ||
-	!ssh1_pkt_getrsakey(pktin, &hostkey, &s->keystr2)) {	
+    if (!ssh1_pkt_getrsakey(pktin, &s->servkey, &s->keystr1) ||
+	!ssh1_pkt_getrsakey(pktin, &s->hostkey, &s->keystr2)) {	
 	bombout(("Failed to read SSH-1 public keys from public key packet"));
 	crStop(0);
     }
@@ -3334,9 +3350,9 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 	char logmsg[80];
 	logevent("Host key fingerprint is:");
 	strcpy(logmsg, "      ");
-	hostkey.comment = NULL;
+	s->hostkey.comment = NULL;
 	rsa_fingerprint(logmsg + strlen(logmsg),
-			sizeof(logmsg) - strlen(logmsg), &hostkey);
+			sizeof(logmsg) - strlen(logmsg), &s->hostkey);
 	logevent(logmsg);
     }
 
@@ -3351,8 +3367,8 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
     ssh->v1_local_protoflags |= SSH1_PROTOFLAG_SCREEN_NUMBER;
 
     MD5Init(&md5c);
-    MD5Update(&md5c, s->keystr2, hostkey.bytes);
-    MD5Update(&md5c, s->keystr1, servkey.bytes);
+    MD5Update(&md5c, s->keystr2, s->hostkey.bytes);
+    MD5Update(&md5c, s->keystr1, s->servkey.bytes);
     MD5Update(&md5c, cookie, 8);
     MD5Final(s->session_id, &md5c);
 
@@ -3362,13 +3378,14 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
     /*
      * Verify that the `bits' and `bytes' parameters match.
      */
-    if (hostkey.bits > hostkey.bytes * 8 ||
-	servkey.bits > servkey.bytes * 8) {
+    if (s->hostkey.bits > s->hostkey.bytes * 8 ||
+	s->servkey.bits > s->servkey.bytes * 8) {
 	bombout(("SSH-1 public keys were badly formatted"));
 	crStop(0);
     }
 
-    s->len = (hostkey.bytes > servkey.bytes ? hostkey.bytes : servkey.bytes);
+    s->len = (s->hostkey.bytes > s->servkey.bytes ?
+              s->hostkey.bytes : s->servkey.bytes);
 
     s->rsabuf = snewn(s->len, unsigned char);
 
@@ -3379,11 +3396,11 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 	/*
 	 * First format the key into a string.
 	 */
-	int len = rsastr_len(&hostkey);
+	int len = rsastr_len(&s->hostkey);
 	char fingerprint[100];
 	char *keystr = snewn(len, char);
-	rsastr_fmt(keystr, &hostkey);
-	rsa_fingerprint(fingerprint, sizeof(fingerprint), &hostkey);
+	rsastr_fmt(keystr, &s->hostkey);
+	rsa_fingerprint(fingerprint, sizeof(fingerprint), &s->hostkey);
 
         ssh_set_frozen(ssh, 1);
 	s->dlgret = verify_ssh_host_key(ssh->frontend,
@@ -3417,14 +3434,14 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 	    s->rsabuf[i] ^= s->session_id[i];
     }
 
-    if (hostkey.bytes > servkey.bytes) {
-	ret = rsaencrypt(s->rsabuf, 32, &servkey);
+    if (s->hostkey.bytes > s->servkey.bytes) {
+	ret = rsaencrypt(s->rsabuf, 32, &s->servkey);
 	if (ret)
-	    ret = rsaencrypt(s->rsabuf, servkey.bytes, &hostkey);
+	    ret = rsaencrypt(s->rsabuf, s->servkey.bytes, &s->hostkey);
     } else {
-	ret = rsaencrypt(s->rsabuf, 32, &hostkey);
+	ret = rsaencrypt(s->rsabuf, 32, &s->hostkey);
 	if (ret)
-	    ret = rsaencrypt(s->rsabuf, hostkey.bytes, &servkey);
+	    ret = rsaencrypt(s->rsabuf, s->hostkey.bytes, &s->servkey);
     }
     if (!ret) {
 	bombout(("SSH-1 public key encryptions failed due to bad formatting"));
@@ -3527,21 +3544,21 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
     ssh->crcda_ctx = crcda_make_context();
     logevent("Installing CRC compensation attack detector");
 
-    if (servkey.modulus) {
-	sfree(servkey.modulus);
-	servkey.modulus = NULL;
+    if (s->servkey.modulus) {
+	sfree(s->servkey.modulus);
+	s->servkey.modulus = NULL;
     }
-    if (servkey.exponent) {
-	sfree(servkey.exponent);
-	servkey.exponent = NULL;
+    if (s->servkey.exponent) {
+	sfree(s->servkey.exponent);
+	s->servkey.exponent = NULL;
     }
-    if (hostkey.modulus) {
-	sfree(hostkey.modulus);
-	hostkey.modulus = NULL;
+    if (s->hostkey.modulus) {
+	sfree(s->hostkey.modulus);
+	s->hostkey.modulus = NULL;
     }
-    if (hostkey.exponent) {
-	sfree(hostkey.exponent);
-	hostkey.exponent = NULL;
+    if (s->hostkey.exponent) {
+	sfree(s->hostkey.exponent);
+	s->hostkey.exponent = NULL;
     }
     crWaitUntil(pktin);
 
@@ -3676,7 +3693,12 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 	    if (s->response && s->responselen >= 5 &&
 		s->response[4] == SSH1_AGENT_RSA_IDENTITIES_ANSWER) {
 		s->p = s->response + 5;
-		s->nkeys = GET_32BIT(s->p);
+		s->nkeys = toint(GET_32BIT(s->p));
+                if (s->nkeys < 0) {
+                    logeventf(ssh, "Pageant reported negative key count %d",
+                              s->nkeys);
+                    s->nkeys = 0;
+                }
 		s->p += 4;
 		logeventf(ssh, "Pageant has %d SSH-1 keys", s->nkeys);
 		for (s->keyi = 0; s->keyi < s->nkeys; s->keyi++) {
@@ -3686,22 +3708,23 @@ static int do_ssh1_login(Ssh ssh, unsigned char *in, int inlen,
 			int n, ok = FALSE;
 			do {	       /* do while (0) to make breaking easy */
 			    n = ssh1_read_bignum
-				(s->p, s->responselen-(s->p-s->response),
+				(s->p, toint(s->responselen-(s->p-s->response)),
 				 &s->key.exponent);
 			    if (n < 0)
 				break;
 			    s->p += n;
 			    n = ssh1_read_bignum
-				(s->p, s->responselen-(s->p-s->response),
+				(s->p, toint(s->responselen-(s->p-s->response)),
 				 &s->key.modulus);
 			    if (n < 0)
-			    break;
+                                break;
 			    s->p += n;
 			    if (s->responselen - (s->p-s->response) < 4)
 				break;
-			    s->commentlen = GET_32BIT(s->p);
+			    s->commentlen = toint(GET_32BIT(s->p));
 			    s->p += 4;
-			    if (s->responselen - (s->p-s->response) <
+			    if (s->commentlen < 0 ||
+                                toint(s->responselen - (s->p-s->response)) <
 				s->commentlen)
 				break;
 			    s->commentp = (char *)s->p;
@@ -4847,17 +4870,15 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
 {
     /* Remote side is trying to open a channel to talk to a
      * forwarded port. Give them back a local channel number. */
-    struct ssh_channel *c;
     struct ssh_rportfwd pf, *pfp;
     int remoteid;
     int hostsize, port;
     char *host;
     const char *e;
-    c = snew(struct ssh_channel);
-    c->ssh = ssh;
 
     remoteid = ssh_pkt_getuint32(pktin);
     ssh_pkt_getstring(pktin, &host, &hostsize);
+    assert(host);
     port = ssh_pkt_getuint32(pktin);
 
     if (hostsize >= lenof(pf.dhost))
@@ -4873,6 +4894,9 @@ static void ssh1_msg_port_open(Ssh ssh, struct Packet *pktin)
 	send_packet(ssh, SSH1_MSG_CHANNEL_OPEN_FAILURE,
 		    PKT_INT, remoteid, PKT_END);
     } else {
+        struct ssh_channel *c = snew(struct ssh_channel);
+        c->ssh = ssh;
+
 	logeventf(ssh, "Received remote port open request for %s:%d",
 		  pf.dhost, port);
 	e = pfd_newconnect(&c->u.pfd.s, pf.dhost, port,
@@ -5887,6 +5911,16 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 	ssh_pkt_getstring(pktin, &str, &len);  /* server->client language */
 	s->ignorepkt = ssh2_pkt_getbool(pktin) && !s->guessok;
 
+	ssh->exhash = ssh->kex->hash->init();
+	hash_string(ssh->kex->hash, ssh->exhash, ssh->v_c, strlen(ssh->v_c));
+	hash_string(ssh->kex->hash, ssh->exhash, ssh->v_s, strlen(ssh->v_s));
+	hash_string(ssh->kex->hash, ssh->exhash,
+	    s->our_kexinit, s->our_kexinitlen);
+	sfree(s->our_kexinit);
+	if (pktin->length > 5)
+	    hash_string(ssh->kex->hash, ssh->exhash,
+		pktin->data + 5, pktin->length - 5);
+
 	if (s->warn_kex) {
 	    ssh_set_frozen(ssh, 1);
 	    s->dlgret = askalg(ssh->frontend, "key-exchange algorithm",
@@ -5960,16 +5994,6 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 		crStopV;
 	    }
 	}
-
-	ssh->exhash = ssh->kex->hash->init();
-	hash_string(ssh->kex->hash, ssh->exhash, ssh->v_c, strlen(ssh->v_c));
-	hash_string(ssh->kex->hash, ssh->exhash, ssh->v_s, strlen(ssh->v_s));
-	hash_string(ssh->kex->hash, ssh->exhash,
-	    s->our_kexinit, s->our_kexinitlen);
-	sfree(s->our_kexinit);
-	if (pktin->length > 5)
-	    hash_string(ssh->kex->hash, ssh->exhash,
-		pktin->data + 5, pktin->length - 5);
 
 	if (s->ignorepkt) /* first_kex_packet_follows */
 	    crWaitUntilV(pktin);                /* Ignore packet */
@@ -7072,6 +7096,15 @@ static void ssh2_msg_channel_close(Ssh ssh, struct Packet *pktin)
         }
 
         /*
+         * Abandon any buffered data we still wanted to send to this
+         * channel. Receiving a CHANNEL_CLOSE is an indication that
+         * the server really wants to get on and _destroy_ this
+         * channel, and it isn't going to send us any further
+         * WINDOW_ADJUSTs to permit us to send pending stuff.
+         */
+        bufchain_clear(&c->v.v2.outbuffer);
+
+        /*
          * Send outgoing EOF.
          */
         sshfwd_write_eof(c);
@@ -7192,16 +7225,18 @@ static void ssh2_msg_channel_request(Ssh ssh, struct Packet *pktin)
 		    is_int = FALSE;
 		} else {
 		    int maybe_int = FALSE, maybe_str = FALSE;
-#define CHECK_HYPOTHESIS(offset, result) \
-    do { \
-	long q = offset; \
-	if (q >= 0 && q+4 <= len) { \
-	    q = q + 4 + GET_32BIT(p+q); \
-	    if (q >= 0 && q+4 <= len && \
-		    ((q = q + 4 + GET_32BIT(p+q))!= 0) && q == len) \
-		result = TRUE; \
-	} \
-    } while(0)
+#define CHECK_HYPOTHESIS(offset, result)                                \
+                    do                                                  \
+                    {                                                   \
+                        int q = toint(offset);                          \
+                        if (q >= 0 && q+4 <= len) {                     \
+                            q = toint(q + 4 + GET_32BIT(p+q));          \
+                            if (q >= 0 && q+4 <= len &&                 \
+                                ((q = toint(q + 4 + GET_32BIT(p+q))) != 0) && \
+                                q == len)                               \
+                                result = TRUE;                          \
+                        }                                               \
+                    } while(0)
 		    CHECK_HYPOTHESIS(4+1, maybe_int);
 		    CHECK_HYPOTHESIS(4+num+1, maybe_str);
 #undef CHECK_HYPOTHESIS
@@ -7352,6 +7387,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
     struct Packet *pktout;
 
     ssh_pkt_getstring(pktin, &type, &typelen);
+    assert(type);
     c = snew(struct ssh_channel);
     c->ssh = ssh;
 
@@ -7519,7 +7555,9 @@ static void ssh2_setup_x11(struct ssh_channel *c, struct Packet *pktin,
     ssh2_pkt_adduint32(pktout, ssh->x11disp->screennum);
     ssh2_pkt_send(ssh, pktout);
 
-    crWaitUntilV(pktin);
+    /* Wait to be called back with either a response packet, or NULL
+     * meaning clean up and free our data */
+    crReturnV;
 
     if (pktin) {
         if (pktin->type == SSH2_MSG_CHANNEL_SUCCESS) {
@@ -7549,7 +7587,9 @@ static void ssh2_setup_agent(struct ssh_channel *c, struct Packet *pktin,
                                ssh2_setup_agent, s);
     ssh2_pkt_send(ssh, pktout);
 
-    crWaitUntilV(pktin);
+    /* Wait to be called back with either a response packet, or NULL
+     * meaning clean up and free our data */
+    crReturnV;
 
     if (pktin) {
         if (pktin->type == SSH2_MSG_CHANNEL_SUCCESS) {
@@ -7596,7 +7636,9 @@ static void ssh2_setup_pty(struct ssh_channel *c, struct Packet *pktin,
     ssh2_pkt_send(ssh, pktout);
     ssh->state = SSH_STATE_INTERMED;
 
-    crWaitUntilV(pktin);
+    /* Wait to be called back with either a response packet, or NULL
+     * meaning clean up and free our data */
+    crReturnV;
 
     if (pktin) {
         if (pktin->type == SSH2_MSG_CHANNEL_SUCCESS) {
@@ -7654,7 +7696,9 @@ static void ssh2_setup_env(struct ssh_channel *c, struct Packet *pktin,
 	s->env_left = s->num_env;
 
 	while (s->env_left > 0) {
-	    crWaitUntilV(pktin);
+            /* Wait to be called back with either a response packet,
+             * or NULL meaning clean up and free our data */
+            crReturnV;
 	    if (!pktin) goto out;
 	    if (pktin->type == SSH2_MSG_CHANNEL_SUCCESS)
 		s->env_ok++;
@@ -7895,13 +7939,53 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		int keyi;
 		unsigned char *p;
 		p = s->agent_response + 5;
-		s->nkeys = GET_32BIT(p);
+		s->nkeys = toint(GET_32BIT(p));
+
+                /*
+                 * Vet the Pageant response to ensure that the key
+                 * count and blob lengths make sense.
+                 */
+                if (s->nkeys < 0) {
+                    logeventf(ssh, "Pageant response contained a negative"
+                              " key count %d", s->nkeys);
+                    s->nkeys = 0;
+                    goto done_agent_query;
+                } else {
+                    unsigned char *q = p + 4;
+                    int lenleft = s->agent_responselen - 5 - 4;
+
+                    for (keyi = 0; keyi < s->nkeys; keyi++) {
+                        int bloblen, commentlen;
+                        if (lenleft < 4) {
+                            logeventf(ssh, "Pageant response was truncated");
+                            s->nkeys = 0;
+                            goto done_agent_query;
+                        }
+                        bloblen = toint(GET_32BIT(q));
+                        if (bloblen < 0 || bloblen > lenleft) {
+                            logeventf(ssh, "Pageant response was truncated");
+                            s->nkeys = 0;
+                            goto done_agent_query;
+                        }
+                        lenleft -= 4 + bloblen;
+                        q += 4 + bloblen;
+                        commentlen = toint(GET_32BIT(q));
+                        if (commentlen < 0 || commentlen > lenleft) {
+                            logeventf(ssh, "Pageant response was truncated");
+                            s->nkeys = 0;
+                            goto done_agent_query;
+                        }
+                        lenleft -= 4 + commentlen;
+                        q += 4 + commentlen;
+                    }
+                }
+
 		p += 4;
 		logeventf(ssh, "Pageant has %d SSH-2 keys", s->nkeys);
 		if (s->publickey_blob) {
 		    /* See if configured key is in agent. */
 		    for (keyi = 0; keyi < s->nkeys; keyi++) {
-			s->pklen = GET_32BIT(p);
+			s->pklen = toint(GET_32BIT(p));
 			if (s->pklen == s->publickey_bloblen &&
 			    !memcmp(p+4, s->publickey_blob,
 				    s->publickey_bloblen)) {
@@ -7912,7 +7996,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 			    break;
 			}
 			p += 4 + s->pklen;
-			p += GET_32BIT(p) + 4; /* comment */
+			p += toint(GET_32BIT(p)) + 4; /* comment */
 		    }
 		    if (!s->pkblob_in_agent) {
 			logevent("Configured key file not in Pageant");
@@ -7922,6 +8006,7 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 	    } else {
                 logevent("Failed to get reply from Pageant");
 	    }
+          done_agent_query:;
 	}
 
     }
@@ -8173,13 +8258,13 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		logeventf(ssh, "Trying Pageant key #%d", s->keyi);
 
 		/* Unpack key from agent response */
-		s->pklen = GET_32BIT(s->agentp);
+		s->pklen = toint(GET_32BIT(s->agentp));
 		s->agentp += 4;
 		s->pkblob = (char *)s->agentp;
 		s->agentp += s->pklen;
-		s->alglen = GET_32BIT(s->pkblob);
+		s->alglen = toint(GET_32BIT(s->pkblob));
 		s->alg = s->pkblob + 4;
-		s->commentlen = GET_32BIT(s->agentp);
+		s->commentlen = toint(GET_32BIT(s->agentp));
 		s->agentp += 4;
 		s->commentp = (char *)s->agentp;
 		s->agentp += s->commentlen;
@@ -8283,7 +8368,9 @@ static void do_ssh2_authconn(Ssh ssh, unsigned char *in, int inlen,
 		    s->ret = vret;
 		    sfree(s->agentreq);
 		    if (s->ret) {
-			if (s->ret[4] == SSH2_AGENT_SIGN_RESPONSE) {
+			if (s->retlen >= 9 &&
+                            s->ret[4] == SSH2_AGENT_SIGN_RESPONSE &&
+                            GET_32BIT(s->ret + 5) <= (unsigned)(s->retlen-9)) {
 			    logevent("Sending Pageant's response");
 			    ssh2_add_sigblob(ssh, s->pktout,
 					     s->pkblob, s->pklen,
@@ -9685,7 +9772,7 @@ static void ssh_free(void *handle)
     while (ssh->qhead) {
 	struct queued_handler *qh = ssh->qhead;
 	ssh->qhead = qh->next;
-	sfree(ssh->qhead);
+	sfree(qh);
     }
     ssh->qhead = ssh->qtail = NULL;
 

@@ -373,15 +373,7 @@ static void pty_open_master(Pty pty)
     strncpy(pty->name, ptsname(pty->master_fd), FILENAME_MAX-1);
 #endif
 
-    {
-        /*
-         * Set the pty master into non-blocking mode.
-         */
-        int fl;
-	fl = fcntl(pty->master_fd, F_GETFL);
-	if (fl != -1 && !(fl & O_NONBLOCK))
-	    fcntl(pty->master_fd, F_SETFL, fl | O_NONBLOCK);
-    }
+    nonblock(pty->master_fd);
 
     if (!ptys_by_fd)
 	ptys_by_fd = newtree234(pty_compare_by_fd);
@@ -411,6 +403,7 @@ void pty_pre_init(void)
 #endif
 
     pty = single_pty = snew(struct pty_tag);
+    pty->conf = NULL;
     bufchain_init(&pty->output_data);
 
     /* set the child signal handler straight away; it needs to be set
@@ -633,6 +626,7 @@ int pty_real_select_result(Pty pty, int event, int status)
 	if (close_on_exit == FORCE_OFF ||
 	    (close_on_exit == AUTO && pty->exit_code != 0)) {
 	    char message[512];
+            message[0] = '\0';
 	    if (WIFEXITED(pty->exit_code))
 		sprintf(message, "\r\n[pterm: process terminated with exit"
 			" code %d]\r\n", WEXITSTATUS(pty->exit_code));
@@ -724,6 +718,7 @@ static const char *pty_init(void *frontend, void **backend_handle, Conf *conf,
 
     if (single_pty) {
 	pty = single_pty;
+        assert(pty->conf == NULL);
     } else {
 	pty = snew(struct pty_tag);
 	pty->master_fd = pty->slave_fd = -1;
@@ -805,7 +800,7 @@ static const char *pty_init(void *frontend, void **backend_handle, Conf *conf,
 	}
 
 	close(pty->master_fd);
-	fcntl(slavefd, F_SETFD, 0);    /* don't close on exec */
+	noncloexec(slavefd);
 	dup2(slavefd, 0);
 	dup2(slavefd, 1);
 	dup2(slavefd, 2);
@@ -817,7 +812,11 @@ static const char *pty_init(void *frontend, void **backend_handle, Conf *conf,
 	pgrp = getpid();
 	tcsetpgrp(0, pgrp);
 	setpgid(pgrp, pgrp);
-	close(open(pty->name, O_WRONLY, 0));
+        {
+            int ptyfd = open(pty->name, O_WRONLY, 0);
+            if (ptyfd >= 0)
+                close(ptyfd);
+        }
 	setpgid(pgrp, pgrp);
 	{
 	    char *term_env_var = dupprintf("TERM=%s",
@@ -966,7 +965,17 @@ static void pty_free(void *handle)
     del234(ptys_by_pid, pty);
     del234(ptys_by_fd, pty);
 
-    sfree(pty);
+    conf_free(pty->conf);
+    pty->conf = NULL;
+
+    if (pty == single_pty) {
+        /*
+         * Leave this structure around in case we need to Restart
+         * Session.
+         */
+    } else {
+        sfree(pty);
+    }
 }
 
 static void pty_try_write(Pty pty)

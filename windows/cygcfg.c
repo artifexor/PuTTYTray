@@ -3,6 +3,14 @@
 
 extern void config_protocolbuttons_handler(union control *, void *, void *, int);
 
+<<<<<<< HEAD
+=======
+static int is64Bits()
+{
+  return (NULL != GetProcAddress(GetModuleHandle("kernel32"), "IsWow64Process")) ? 1 : 0;
+}
+
+>>>>>>> upstream/master
 void cygterm_setup_config_box(struct controlbox *b, int midsession)
 {
     union control *c;
@@ -38,6 +46,16 @@ void cygterm_setup_config_box(struct controlbox *b, int midsession)
 	              HELPCTX(no_help),
 	              conf_checkbox_handler,
 	              I(CONF_cygautopath));
+<<<<<<< HEAD
+=======
+        if( is64Bits() )
+        {
+            ctrl_checkbox(s, "Use Cygwin64", 'u',
+                          HELPCTX(no_help),
+                          conf_checkbox_handler,
+                          I(CONF_cygterm64));
+        }
+>>>>>>> upstream/master
     }
 }
 

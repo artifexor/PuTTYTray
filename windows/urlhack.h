@@ -3,10 +3,18 @@
 #define _URLHACK_H
 
 #include "re_lib/regexp.h"
+<<<<<<< HEAD
+=======
+#include <wchar.h>
+>>>>>>> upstream/master
 
 typedef struct { int x0, y0, x1, y1; } text_region;
 
 extern const char* urlhack_default_regex;
+<<<<<<< HEAD
+=======
+extern const char* urlhack_liberal_regex;
+>>>>>>> upstream/master
 extern int urlhack_mouse_old_x, urlhack_mouse_old_y, urlhack_current_region;
 
 void urlhack_reset();
@@ -20,7 +28,11 @@ text_region urlhack_get_link_bounds(int x, int y);
 void urlhack_add_link_region(int x0, int y0, int x1, int y1);
 void urlhack_launch_url(const char* app, const wchar_t *url);
 int urlhack_is_ctrl_pressed();
+<<<<<<< HEAD
 void urlhack_set_regular_expression(const char* expression);
+=======
+void urlhack_set_regular_expression(int mode, const char* expression);
+>>>>>>> upstream/master
 void rtfm(const char *error);
 
 void urlhack_init();

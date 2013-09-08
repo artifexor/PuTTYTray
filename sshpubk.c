@@ -67,14 +67,15 @@ static int loadrsakey_main(FILE * fp, struct RSAKey *key, int pub_only,
     i += 4;
 
     /* Now the serious stuff. An ordinary SSH-1 public key. */
-    i += makekey(buf + i, len, key, NULL, 1);
-    if (i < 0)
+    j = makekey(buf + i, len, key, NULL, 1);
+    if (j < 0)
 	goto end;		       /* overran */
+    i += j;
 
     /* Next, the comment field. */
-    j = GET_32BIT(buf + i);
+    j = toint(GET_32BIT(buf + i));
     i += 4;
-    if (len - i < j)
+    if (j < 0 || len - i < j)
 	goto end;
     comment = snewn(j + 1, char);
     if (comment) {
@@ -140,7 +141,6 @@ static int loadrsakey_main(FILE * fp, struct RSAKey *key, int pub_only,
     i += j;
     j = ssh1_read_bignum(buf + i, len - i, &key->p);
     if (j < 0) goto end;
-    i += j;
 
     if (!rsa_verify(key)) {
 	*error = "rsa_verify failed";
@@ -257,8 +257,8 @@ int rsakey_pubblob(const Filename *filename, void **blob, int *bloblen,
 	    *blob = rsa_public_blob(&key, bloblen);
 	    freersakey(&key);
 	    ret = 1;
-	    fp = NULL;
 	}
+	fp = NULL; /* loadrsakey_main unconditionally closes fp */
     } else {
 	error = "not an SSH-1 RSA file";
     }
@@ -462,7 +462,7 @@ static int read_header(FILE * fp, char *header)
     int len = 39;
     int c;
 
-    while (len > 0) {
+    while (1) {
 	c = fgetc(fp);
 	if (c == '\n' || c == '\r' || c == EOF)
 	    return 0;		       /* failure */
@@ -679,7 +679,6 @@ struct ssh2_userkey *ssh2_load_userkey(const Filename *filename,
 	cipher = 0;
 	cipherblk = 1;
     } else {
-	sfree(encryption);
 	goto error;
     }
 
@@ -1008,6 +1007,8 @@ int ssh2_userkey_encrypted(const Filename *filename, char **commentptr)
 
     if (commentptr)
 	*commentptr = comment;
+    else
+        sfree(comment);
 
     fclose(fp);
     if (!strcmp(b, "aes256-cbc"))
@@ -1214,12 +1215,12 @@ int key_type(const Filename *filename)
 char *key_type_to_str(int type)
 {
     switch (type) {
-      case SSH_KEYTYPE_UNOPENABLE: return "unable to open file"; break;
-      case SSH_KEYTYPE_UNKNOWN: return "not a private key"; break;
-      case SSH_KEYTYPE_SSH1: return "SSH-1 private key"; break;
-      case SSH_KEYTYPE_SSH2: return "PuTTY SSH-2 private key"; break;
-      case SSH_KEYTYPE_OPENSSH: return "OpenSSH SSH-2 private key"; break;
-      case SSH_KEYTYPE_SSHCOM: return "ssh.com SSH-2 private key"; break;
-      default: return "INTERNAL ERROR"; break;
+      case SSH_KEYTYPE_UNOPENABLE: return "unable to open file";
+      case SSH_KEYTYPE_UNKNOWN: return "not a private key";
+      case SSH_KEYTYPE_SSH1: return "SSH-1 private key";
+      case SSH_KEYTYPE_SSH2: return "PuTTY SSH-2 private key";
+      case SSH_KEYTYPE_OPENSSH: return "OpenSSH SSH-2 private key";
+      case SSH_KEYTYPE_SSHCOM: return "ssh.com SSH-2 private key";
+      default: return "INTERNAL ERROR";
     }
 }

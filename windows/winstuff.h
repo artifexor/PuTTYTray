@@ -466,7 +466,14 @@ void show_help(HWND hwnd);
 extern OSVERSIONINFO osVersion;
 BOOL init_winver(void);
 HMODULE load_system32_dll(const char *libname);
+<<<<<<< HEAD
 struct Filename *get_id_rsa_path();
+=======
+const char *win_strerror(int error);
+HICON extract_icon(const char *iconpath, int smallicon);
+struct Filename *get_id_rsa_path();
+
+>>>>>>> upstream/master
 
 /*
  * Exports from sizetip.c.
@@ -557,5 +564,10 @@ int remove_from_jumplist_registry(const char *item);
  * sequence of NUL-terminated strings in memory, terminated with an
  * empty one. */
 char *get_jumplist_registry_entries(void);
+
+
+int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
+int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
+int pageant_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show);
 
 #endif

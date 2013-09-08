@@ -662,6 +662,7 @@ static void telnet_log(Plug plug, int type, SockAddr addr, int port,
 	msg = dupprintf("Failed to connect to %s: %s", addrbuf, error_msg);
 
     logevent(telnet->frontend, msg);
+    sfree(msg);
 }
 
 static int telnet_closing(Plug plug, const char *error_msg, int error_code,
@@ -721,7 +722,8 @@ static const char *telnet_init(void *frontend_handle, void **backend_handle,
 	telnet_log,
 	telnet_closing,
 	telnet_receive,
-	telnet_sent
+	telnet_sent,
+        NULL
     };
     SockAddr addr;
     const char *err;

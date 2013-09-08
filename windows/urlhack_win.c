@@ -3,8 +3,12 @@
 #include "misc.h"
 #include "urlhack.h"
 
+<<<<<<< HEAD
 #define MAX_STR 4096
 static wchar_t browser_app[MAX_STR] = L"";
+=======
+enum { MAX_STR = 4096 };
+>>>>>>> upstream/master
 
 static int starts_with(const wchar_t *thing, const wchar_t *prefix) {
     return 0 == wcsncmp(thing, prefix, wcslen(prefix));
@@ -12,6 +16,7 @@ static int starts_with(const wchar_t *thing, const wchar_t *prefix) {
 
 void urlhack_launch_url(const char* app, const wchar_t *url)
 {
+<<<<<<< HEAD
 	wchar_t *u;
 	if (app) {
             wchar_t app_w[MAX_STR];
@@ -87,11 +92,50 @@ void urlhack_launch_url(const char* app, const wchar_t *url)
 
 	ShellExecuteW(NULL, NULL, browser_app, u, NULL, SW_SHOW);
 	free(u);
+=======
+    wchar_t *u;
+    if (app) {
+        wchar_t app_w[MAX_STR];
+        size_t newlen;
+        mbstowcs_s(&newlen, app_w, MAX_STR, app, MAX_STR);
+	ShellExecuteW(NULL, NULL, app_w, url, NULL, SW_SHOW);
+	return;
+    }
+
+    if ((long)ShellExecuteW(NULL, NULL, url, NULL, NULL, SW_SHOWNORMAL) > 32) {
+	return;
+    }
+
+    // if the OS couldn't launch it, munge it towards a plausible url, then launch that instead:
+    u = snewn(wcslen(url) + 10, wchar_t);
+    wcscpy(u, url);
+
+    if (!starts_with(url, L"http://") && !starts_with(url, L"https://") &&
+	!starts_with(url, L"ftp://") && !starts_with(url, L"ftps://")) {
+	if (wcsstr(url, L"ftp.")) {
+	    wcscpy(u, L"ftp://");
+	    wcscat(u, url);
+	} else {
+	    wcscpy(u, L"http://");
+	    wcscat(u, url);
+	}
+    }
+
+    if (!!wcscmp(url, u)) {
+        ShellExecuteW(NULL, NULL, u, NULL, NULL, SW_SHOWNORMAL);
+    }
+
+    free(u);
+>>>>>>> upstream/master
 }
 
 int urlhack_is_ctrl_pressed()
 {
+<<<<<<< HEAD
 	return HIWORD(GetAsyncKeyState(VK_CONTROL));
+=======
+    return HIWORD(GetAsyncKeyState(VK_CONTROL));
+>>>>>>> upstream/master
 }
 
 

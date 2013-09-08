@@ -1,17 +1,31 @@
+<<<<<<< HEAD
 #include <windows.h>
 #include <string.h>
+=======
+#include <string.h>
+#include <assert.h>
+
+#include "putty.h"
+>>>>>>> upstream/master
 #include "urlhack.h"
 #include "misc.h"
 #include "puttymem.h"
 
 
+<<<<<<< HEAD
 extern int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
+=======
+int urlhack_mouse_old_x = -1, urlhack_mouse_old_y = -1, urlhack_current_region = -1;
+>>>>>>> upstream/master
 
 static text_region **link_regions;
 static unsigned int link_regions_len;
 static unsigned int link_regions_current_pos;
 
+<<<<<<< HEAD
 void urlhack_launch_url(const char* app, const char *url);
+=======
+>>>>>>> upstream/master
 int urlhack_is_ctrl_pressed();
 void rtfm(const char *error);
 
@@ -65,7 +79,11 @@ text_region urlhack_get_link_region(unsigned int index)
 {
     text_region region;
 
+<<<<<<< HEAD
     if (index < 0 || index >= link_regions_current_pos) {
+=======
+    if (index >= link_regions_current_pos) {
+>>>>>>> upstream/master
         region.x0 = region.y0 = region.x1 = region.y1 = -1;
         return region;
     }
@@ -158,13 +176,37 @@ void urlhack_reset()
     window_text_current_pos = 0;
 }
 
+<<<<<<< HEAD
 void urlhack_set_regular_expression(const char* expression)
 {
+=======
+void urlhack_set_regular_expression(int mode, const char* expression)
+{
+    const char *to_use;
+    switch (mode) {
+    case URLHACK_REGEX_CUSTOM:
+        to_use = expression;
+        break;
+    case URLHACK_REGEX_CLASSIC:
+        to_use = urlhack_default_regex;
+        break;
+    case URLHACK_REGEX_LIBERAL:
+        to_use = urlhack_liberal_regex;
+        break;
+    default:
+        assert(!"illegal default regex setting");
+    }
+
+>>>>>>> upstream/master
     is_regexp_compiled = 0;
     urlhack_disabled = 0;
 
     set_regerror_func(rtfm);
+<<<<<<< HEAD
     urlhack_rx = regcomp((char*)(expression));
+=======
+    urlhack_rx = regcomp((char*)(to_use));
+>>>>>>> upstream/master
 
     if (urlhack_rx == 0) {
         urlhack_disabled = 1;
@@ -180,7 +222,11 @@ void urlhack_go_find_me_some_hyperlinks(int screen_width)
     if (urlhack_disabled != 0) return;
 
     if (is_regexp_compiled == 0) {
+<<<<<<< HEAD
         urlhack_set_regular_expression(urlhack_default_regex);
+=======
+        urlhack_set_regular_expression(URLHACK_REGEX_CLASSIC, urlhack_default_regex);
+>>>>>>> upstream/master
     }
 
     urlhack_link_regions_clear();

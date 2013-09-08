@@ -140,9 +140,21 @@ typedef struct terminal_tag Terminal;
 #define CHAR_MASK    0x000000FFUL
 
 enum {
+<<<<<<< HEAD
 	URLHACK_UNDERLINE_ALWAYS,
 	URLHACK_UNDERLINE_HOVER,
 	URLHACK_UNDERLINE_NEVER
+=======
+    URLHACK_UNDERLINE_ALWAYS,
+    URLHACK_UNDERLINE_HOVER,
+    URLHACK_UNDERLINE_NEVER
+};
+
+enum {
+    URLHACK_REGEX_CUSTOM = 0,
+    URLHACK_REGEX_CLASSIC = 1,
+    URLHACK_REGEX_LIBERAL,
+>>>>>>> upstream/master
 };
 
 /*
@@ -850,6 +862,7 @@ int char_width(Context ctx, int uc);
 void do_scroll(Context, int, int, int);
 #endif
 void set_title(void *frontend, char *);
+void set_title_encoded(void *frontend, char *, int);
 void set_icon(void *frontend, char *);
 void set_sbar(void *frontend, int, int, int);
 Context get_ctx(void *frontend);
@@ -862,6 +875,7 @@ void get_clip(void *frontend, wchar_t **, int *);
 void optimised_move(void *frontend, int, int, int);
 void set_raw_mouse_mode(void *frontend, int);
 void connection_fatal(void *frontend, char *, ...);
+void nonfatal(char *, ...);
 void fatalbox(char *, ...);
 void modalfatalbox(char *, ...);
 #ifdef macintosh
@@ -993,6 +1007,10 @@ void cleanup_exit(int);
     X(INT, NONE, serflow) \
     /* Cygterm options */ \
     X(INT, NONE, cygautopath) \
+<<<<<<< HEAD
+=======
+    X(INT, NONE, cygterm64) \
+>>>>>>> upstream/master
     X(STR, NONE, cygcmd) \
     /* Keyboard options */ \
     X(INT, NONE, bksp_is_delete) \
@@ -1137,6 +1155,10 @@ void cleanup_exit(int);
     X(INT, NONE, transparency) \
     X(INT, NONE, failure_reconnect) \
     X(INT, NONE, wakeup_reconnect) \
+<<<<<<< HEAD
+=======
+    X(INT, NONE, wakeup_reconnect_delay) \
+>>>>>>> upstream/master
     X(INT, NONE, session_storagetype) \
     X(INT, NONE, tray) \
     X(INT, NONE, start_tray) \
@@ -1189,7 +1211,7 @@ void conf_set_fontspec(Conf *conf, int key, const FontSpec *val);
 /* Serialisation functions for Duplicate Session */
 int conf_serialised_size(Conf *conf);
 void conf_serialise(Conf *conf, void *data);
-int conf_deserialise(Conf *conf, void *data, int maxsize);/*returns size used*/
+size_t conf_deserialise(Conf *conf, void *data, size_t maxsize);/*returns size used*/
 
 /*
  * Functions to copy, free, serialise and deserialise FontSpecs.
@@ -1234,6 +1256,10 @@ void registry_cleanup(void);
  * Quick hack to load defaults from file
  */
 void do_defaults_file(char *, Conf *);
+<<<<<<< HEAD
+=======
+void do_defaults_then_file(char *, Conf *);
+>>>>>>> upstream/master
 void load_settings_file(char *section, Conf * cfg);
 
 /*
@@ -1405,6 +1431,11 @@ void pinger_free(Pinger);
 #include "misc.h"
 int conf_launchable(Conf *conf);
 char const *conf_dest(Conf *conf);
+
+/*
+ * Exports from *misc.c.
+ */
+void sanitise_path_leaving_slashes(char *path);
 
 /*
  * Exports from sercfg.c.

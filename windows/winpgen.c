@@ -24,27 +24,17 @@
 
 static char *cmdline_keyfile = NULL;
 static Filename *cmdline_keygen = NULL;
+<<<<<<< HEAD
 
 #define PASSPHRASE_PROC_OK 1
 #define PASSPHRASE_PROC_CANCEL 2
 #define PASSPHRASE_PROC_CLOSE 0
+=======
+>>>>>>> upstream/master
 
-/*
- * Print a modal (Really Bad) message box and perform a fatal exit.
- */
-void modalfatalbox(char *fmt, ...)
-{
-    va_list ap;
-    char *stuff;
-
-    va_start(ap, fmt);
-    stuff = dupvprintf(fmt, ap);
-    va_end(ap);
-    MessageBox(NULL, stuff, "PuTTYgen Fatal Error",
-	       MB_SYSTEMMODAL | MB_ICONERROR | MB_OK);
-    sfree(stuff);
-    exit(1);
-}
+#define PASSPHRASE_PROC_OK 1
+#define PASSPHRASE_PROC_CANCEL 2
+#define PASSPHRASE_PROC_CLOSE 0
 
 /* ----------------------------------------------------------------------
  * Progress report code. This is really horrible :-)
@@ -390,37 +380,17 @@ static int save_ssh1_pubkey(char *filename, struct RSAKey *key)
     char *dec1, *dec2;
     FILE *fp;
 
-    dec1 = bignum_decimal(key->exponent);
-    dec2 = bignum_decimal(key->modulus);
     fp = fopen(filename, "wb");
     if (!fp)
 	return 0;
+    dec1 = bignum_decimal(key->exponent);
+    dec2 = bignum_decimal(key->modulus);
     fprintf(fp, "%d %s %s %s\n",
 	    bignum_bitcount(key->modulus), dec1, dec2, key->comment);
     fclose(fp);
     sfree(dec1);
     sfree(dec2);
     return 1;
-}
-
-/*
- * Warn about the obsolescent key file format.
- */
-void old_keyfile_warning(void)
-{
-    static const char mbtitle[] = "PuTTY Key File Warning";
-    static const char message[] =
-	"You are loading an SSH-2 private key which has an\n"
-	"old version of the file format. This means your key\n"
-	"file is not fully tamperproof. Future versions of\n"
-	"PuTTY may stop supporting this private key format,\n"
-	"so we recommend you convert your key to the new\n"
-	"format.\n"
-	"\n"
-	"Once the key is loaded into PuTTYgen, you can perform\n"
-	"this conversion simply by saving it again.";
-
-    MessageBox(NULL, message, mbtitle, MB_OK);
 }
 
 static int save_ssh2_pubkey(char *filename, struct ssh2_userkey *key)
@@ -921,13 +891,25 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 	 */
 	ui_set_state(hwnd, state, 0);
 
+<<<<<<< HEAD
         if (cmdline_keygen)
+=======
+        if (cmdline_keygen) {
+>>>>>>> upstream/master
             PostMessage(hwnd, WM_COMMAND, IDC_GENERATE, 0);
 	/*
 	 * Load a key file if one was provided on the command line.
 	 */
+<<<<<<< HEAD
         else if (cmdline_keyfile)
 	    load_key_file(hwnd, state, filename_from_str(cmdline_keyfile), 0);
+=======
+	} else if (cmdline_keyfile) {
+            Filename *fn = filename_from_str(cmdline_keyfile);
+	    load_key_file(hwnd, state, fn, 0);
+            filename_free(fn);
+        }
+>>>>>>> upstream/master
 
 	return 1;
       case WM_MOUSEMOVE:
@@ -1276,9 +1258,11 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
 	    if (!state->generation_thread_exists) {
 		char filename[FILENAME_MAX];
 		if (prompt_keyfile(hwnd, "Load private key:",
-				   filename, 0, LOWORD(wParam)==IDC_LOAD))
-		    load_key_file(hwnd, state, filename_from_str(filename),
-				  LOWORD(wParam) != IDC_LOAD);
+				   filename, 0, LOWORD(wParam)==IDC_LOAD)) {
+                    Filename *fn = filename_from_str(filename);
+		    load_key_file(hwnd, state, fn, LOWORD(wParam) != IDC_LOAD);
+                    filename_free(fn);
+                }
 	    }
 	    break;
 	}
@@ -1433,13 +1417,7 @@ static int CALLBACK MainDlgProc(HWND hwnd, UINT msg,
     return 0;
 }
 
-void cleanup_exit(int code)
-{
-    shutdown_help();
-    exit(code);
-}
-
-int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
+int puttygen_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
 {
     int argc;
     char **argv;

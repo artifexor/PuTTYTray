@@ -2,3 +2,15 @@ config.*
 configure
 install-sh
 uxconfig.*
+<<<<<<< HEAD
+=======
+.deps
+*.cache
+empty.h
+missing
+stamp-h1
+depcomp
+aclocal.m4
+ar-lib
+compile
+>>>>>>> upstream/master

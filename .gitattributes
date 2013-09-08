@@ -1,2 +1,6 @@
 *.vcxproj  eol=crlf
 *.sln      eol=crlf
+<<<<<<< HEAD
+=======
+*.bat      eol=crlf
+>>>>>>> upstream/master
