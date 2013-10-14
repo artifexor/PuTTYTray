@@ -1533,7 +1533,6 @@ Terminal *term_init(Conf *myconf, struct unicode_data *ucsdata,
     term->cblink_pending = term->tblink_pending = FALSE;
     term->paste_buffer = NULL;
     term->paste_len = 0;
-    term->last_paste = 0;
     bufchain_init(&term->inbuf);
     bufchain_init(&term->printer_buf);
     term->printing = term->only_printing = FALSE;
@@ -3056,7 +3055,6 @@ static void term_out(Terminal *term)
 		term->curs.x = 0;
 		term->wrapnext = FALSE;
 		seen_disp_event(term);
-		term->paste_hold = 0;
 
 		if (term->crhaslf) {
 		    if (term->curs.y == term->marg_b)
@@ -3087,7 +3085,6 @@ static void term_out(Terminal *term)
 		    term->curs.x = 0;
 		term->wrapnext = FALSE;
 		seen_disp_event(term);
-		term->paste_hold = 0;
 		if (term->logctx)
 		    logtraffic(term->logctx, (unsigned char) c, LGTYP_ASCII);
 		break;
@@ -5889,6 +5886,33 @@ static void sel_spread(Terminal *term)
     }
 }
 
+static void term_paste_callback(void *vterm)
+{
+    Terminal *term = (Terminal *)vterm;
+
+    if (term->paste_len == 0)
+	return;
+
+    while (term->paste_pos < term->paste_len) {
+	int n = 0;
+	while (n + term->paste_pos < term->paste_len) {
+	    if (term->paste_buffer[term->paste_pos + n++] == '\015')
+		break;
+	}
+	if (term->ldisc)
+	    luni_send(term->ldisc, term->paste_buffer + term->paste_pos, n, 0);
+	term->paste_pos += n;
+
+	if (term->paste_pos < term->paste_len) {
+            queue_toplevel_callback(term_paste_callback, term);
+	    return;
+	}
+    }
+    sfree(term->paste_buffer);
+    term->paste_buffer = NULL;
+    term->paste_len = 0;
+}
+
 void term_do_paste(Terminal *term)
 {
     wchar_t *data;
@@ -5902,7 +5926,7 @@ void term_do_paste(Terminal *term)
 
         if (term->paste_buffer)
             sfree(term->paste_buffer);
-        term->paste_pos = term->paste_hold = term->paste_len = 0;
+        term->paste_pos = term->paste_len = 0;
         term->paste_buffer = snewn(len + 12, wchar_t);
 
         if (term->bracketed_paste) {
@@ -5945,10 +5969,12 @@ void term_do_paste(Terminal *term)
             if (term->paste_buffer)
                 sfree(term->paste_buffer);
             term->paste_buffer = 0;
-            term->paste_pos = term->paste_hold = term->paste_len = 0;
+            term->paste_pos = term->paste_len = 0;
         }
     }
     get_clip(term->frontend, NULL, NULL);
+
+    queue_toplevel_callback(term_paste_callback, term);
 }
 
 void urlhack_launch_url_helper(Terminal *term, void *frontend, wchar_t * data, int *attr, int len, int must_deselect) {
@@ -6274,47 +6300,6 @@ void term_nopaste(Terminal *term)
 {
     if (term->paste_len == 0)
 	return;
-    sfree(term->paste_buffer);
-    term->paste_buffer = NULL;
-    term->paste_len = 0;
-}
-
-int term_paste_pending(Terminal *term)
-{
-    return term->paste_len != 0;
-}
-
-void term_paste(Terminal *term)
-{
-    long now, paste_diff;
-
-    if (term->paste_len == 0)
-	return;
-
-    /* Don't wait forever to paste */
-    if (term->paste_hold) {
-	now = GETTICKCOUNT();
-	paste_diff = now - term->last_paste;
-	if (paste_diff >= 0 && paste_diff < 450)
-	    return;
-    }
-    term->paste_hold = 0;
-
-    while (term->paste_pos < term->paste_len) {
-	int n = 0;
-	while (n + term->paste_pos < term->paste_len) {
-	    if (term->paste_buffer[term->paste_pos + n++] == '\015')
-		break;
-	}
-	if (term->ldisc)
-	    luni_send(term->ldisc, term->paste_buffer + term->paste_pos, n, 0);
-	term->paste_pos += n;
-
-	if (term->paste_pos < term->paste_len) {
-	    term->paste_hold = 1;
-	    return;
-	}
-    }
     sfree(term->paste_buffer);
     term->paste_buffer = NULL;
     term->paste_len = 0;

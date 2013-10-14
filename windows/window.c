@@ -135,10 +135,6 @@ static int offset_width, offset_height;
 static int was_zoomed = 0;
 static int prev_rows, prev_cols;
   
-static int pending_netevent = 0;
-static WPARAM pend_netevent_wParam = 0;
-static LPARAM pend_netevent_lParam = 0;
-static void enact_pending_netevent(void);
 static void flash_window(int mode);
 static void sys_cursor_update(void);
 static int get_fullscreen_rect(RECT * ss);
@@ -152,7 +148,7 @@ static Backend *back;
 static void *backhandle;
 
 static struct unicode_data ucsdata;
-static int must_close_session, session_closed;
+static int session_closed;
 static int reconfiguring = FALSE;
 
 static const struct telnet_special *specials = NULL;
@@ -172,6 +168,12 @@ static struct {
 } popup_menus[2];
 enum { SYSMENU, CTXMENU };
 static HMENU savedsess_menu;
+
+struct wm_netevent_params {
+    /* Used to pass data to wm_netevent_callback */
+    WPARAM wParam;
+    LPARAM lParam;
+};
 
 Conf *conf;			       /* exported to windlg.c */
 
@@ -372,11 +374,10 @@ static void start_backend(void)
 	DeleteMenu(popup_menus[i].menu, IDM_RESTART, MF_BYCOMMAND);
     }
 
-    must_close_session = FALSE;
     session_closed = FALSE;
 }
 
-static void close_session(void)
+static void close_session(void *ignored_context)
 {
     char morestuff[100];
     int i;
@@ -407,15 +408,6 @@ static void close_session(void)
 	InsertMenu(popup_menus[i].menu, IDM_DUPSESS, MF_BYCOMMAND | MF_ENABLED,
 		   IDM_RESTART, "&Restart Session");
     }
-
-    /*
-     * Unset the 'must_close_session' flag, or else we'll come
-     * straight back here the next time we go round the main message
-     * loop - which, worse still, will be immediately (without
-     * blocking) because we've just triggered a WM_SETTEXT by the
-     * window title change above.
-     */
-    must_close_session = FALSE;
 }
 
 /* Copy at most n characters from src to dst or until copying a '\0'
@@ -1160,43 +1152,36 @@ int putty_main(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show)
     while (1) {
 	HANDLE *handles;
 	int nhandles, n;
+        DWORD timeout;
+
+        if (toplevel_callback_pending()) {
+            timeout = 0;
+        } else {
+            timeout = INFINITE;
+            /* The messages seem unreliable; especially if we're being tricky */
+            term_set_focus(term, GetForegroundWindow() == hwnd);
+        }
 
 	handles = handle_get_events(&nhandles);
 
-	n = MsgWaitForMultipleObjects(nhandles, handles, FALSE, INFINITE,
-				      QS_ALLINPUT);
+	n = MsgWaitForMultipleObjects(nhandles, handles, FALSE,
+                                      timeout, QS_ALLINPUT);
 
 	if ((unsigned)(n - WAIT_OBJECT_0) < (unsigned)nhandles) {
 	    handle_got_event(handles[n - WAIT_OBJECT_0]);
 	    sfree(handles);
-	    if (must_close_session)
-		close_session();
 	} else
 	    sfree(handles);
 
-	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+	if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 	    if (msg.message == WM_QUIT)
 		goto finished;	       /* two-level break */
 
 	    if (!(IsWindow(logbox) && IsDialogMessage(logbox, &msg)))
 		DispatchMessage(&msg);
-	    /* Send the paste buffer if there's anything to send */
-	    term_paste(term);
-	    /* If there's nothing new in the queue then we can do everything
-	     * we've delayed, reading the socket, writing, and repainting
-	     * the window.
-	     */
-	    if (must_close_session)
-		close_session();
 	}
 
-	/* The messages seem unreliable; especially if we're being tricky */
-	term_set_focus(term, GetForegroundWindow() == hwnd);
-
-	if (pending_netevent)
-	    enact_pending_netevent();
-
-	net_pending_errors();
+        run_toplevel_callbacks();
     }
 
     finished:
@@ -1428,6 +1413,7 @@ void connection_fatal(void *frontend, char *fmt, ...)
         time_t tnow = time(NULL);
         close_session();
 
+<<<<<<< HEAD
         if(last_reconnect && (tnow - last_reconnect) < 5) {
             Sleep(5000);
         }
@@ -1449,6 +1435,12 @@ void connection_fatal(void *frontend, char *fmt, ...)
         else {
             must_close_session = TRUE;
         }
+=======
+    if (conf_get_int(conf, CONF_close_on_exit) == FORCE_ON)
+	PostQuitMessage(1);
+    else {
+	queue_toplevel_callback(close_session, NULL);
+>>>>>>> upstream/svn
     }
 }
 
@@ -1472,19 +1464,11 @@ void cmdline_error(char *fmt, ...)
 /*
  * Actually do the job requested by a WM_NETEVENT
  */
-static void enact_pending_netevent(void)
+static void wm_netevent_callback(void *vctx)
 {
-    static int reentering = 0;
-    extern int select_result(WPARAM, LPARAM);
-
-    if (reentering)
-	return;			       /* don't unpend the pending */
-
-    pending_netevent = FALSE;
-
-    reentering = 1;
-    select_result(pend_netevent_wParam, pend_netevent_lParam);
-    reentering = 0;
+    struct wm_netevent_params *params = (struct wm_netevent_params *)vctx;
+    select_result(params->wParam, params->lParam);
+    sfree(vctx);
 }
 
 /*
@@ -2354,7 +2338,7 @@ void notify_remote_exit(void *fe)
 	    (close_on_exit == AUTO && exitcode != INT_MAX)) {
 	    PostQuitMessage(0);
 	} else {
-	    must_close_session = TRUE;
+            queue_toplevel_callback(close_session, NULL);
 	    session_closed = TRUE;
 	    /* exitcode == INT_MAX indicates that the connection was closed
 	     * by a fatal error, so an error box will be coming our way and
@@ -2892,7 +2876,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 
 		InvalidateRect(hwnd, NULL, TRUE);
 		reset_window(init_lvl);
-		net_pending_errors();
 
 		conf_free(prev_conf);
 	    }
@@ -2981,7 +2964,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		    break;
 		if (back)
 		    back->special(backhandle, specials[i].code);
-		net_pending_errors();
 	    }
 	}
 	break;
@@ -3319,20 +3301,20 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 	}
 	return 0;
       case WM_NETEVENT:
-	/* Notice we can get multiple netevents, FD_READ, FD_WRITE etc
-	 * but the only one that's likely to try to overload us is FD_READ.
-	 * This means buffering just one is fine.
-	 */
-	if (pending_netevent)
-	    enact_pending_netevent();
-
-	pending_netevent = TRUE;
-	pend_netevent_wParam = wParam;
-	pend_netevent_lParam = lParam;
-	if (WSAGETSELECTEVENT(lParam) != FD_READ)
-	    enact_pending_netevent();
-
-	net_pending_errors();
+        {
+            /*
+             * To protect against re-entrancy when Windows's recv()
+             * immediately triggers a new WSAAsyncSelect window
+             * message, we don't call select_result directly from this
+             * handler but instead wait until we're back out at the
+             * top level of the message loop.
+             */
+            struct wm_netevent_params *params =
+                snew(struct wm_netevent_params);
+            params->wParam = wParam;
+            params->lParam = lParam;
+            queue_toplevel_callback(wm_netevent_callback, params);
+        }
 	return 0;
       case WM_SETFOCUS:
 	term_set_focus(term, TRUE);
@@ -3766,14 +3748,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 
 		if (len != 0) {
 		    /*
-		     * Interrupt an ongoing paste. I'm not sure
-		     * this is sensible, but for the moment it's
-		     * preferable to having to faff about buffering
-		     * things.
-		     */
-		    term_nopaste(term);
-
-		    /*
 		     * We need not bother about stdin backlogs
 		     * here, because in GUI PuTTY we can't do
 		     * anything about it anyway; there's no means
@@ -3788,7 +3762,6 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT message,
 		}
 	    }
 	}
-	net_pending_errors();
 	return 0;
       case WM_INPUTLANGCHANGE:
 	/* wParam == Font number */
@@ -5514,13 +5487,6 @@ static int TranslateKey(UINT message, WPARAM wParam, LPARAM lParam,
 #endif
 	if (r > 0) {
 	    WCHAR keybuf;
-
-	    /*
-	     * Interrupt an ongoing paste. I'm not sure this is
-	     * sensible, but for the moment it's preferable to
-	     * having to faff about buffering things.
-	     */
-	    term_nopaste(term);
 
 	    p = output;
 	    for (i = 0; i < r; i++) {

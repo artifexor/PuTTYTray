@@ -57,10 +57,6 @@ void nonfatal(char *p, ...)
     vfprintf(stderr, p, ap);
     va_end(ap);
     fputc('\n', stderr);
-    if (logctx) {
-        log_free(logctx);
-        logctx = NULL;
-    }
 }
 void connection_fatal(void *frontend, char *p, ...)
 {
@@ -648,7 +644,9 @@ int main(int argc, char **argv)
 	    sending = TRUE;
 	}
 
-	if (run_timers(now, &next)) {
+        if (toplevel_callback_pending()) {
+            ticks = 0;
+        } else if (run_timers(now, &next)) {
 	    then = now;
 	    now = GETTICKCOUNT();
 	    if (now - then > next - then)
@@ -737,6 +735,8 @@ int main(int argc, char **argv)
 		sfree(c);
 	    }
 	}
+
+        run_toplevel_callbacks();
 
 	if (n == WAIT_TIMEOUT) {
 	    now = next;

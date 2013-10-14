@@ -1303,8 +1303,6 @@ void term_update(Terminal *);
 void term_invalidate(Terminal *);
 void term_blink(Terminal *, int set_cursor);
 void term_do_paste(Terminal *);
-int term_paste_pending(Terminal *);
-void term_paste(Terminal *);
 void term_nopaste(Terminal *);
 int term_ldisc(Terminal *, int option);
 void term_copyall(Terminal *);
@@ -1733,6 +1731,36 @@ unsigned long schedule_timer(int ticks, timer_fn_t fn, void *ctx);
 void expire_timer_context(void *ctx);
 int run_timers(unsigned long now, unsigned long *next);
 void timer_change_notify(unsigned long next);
+
+/*
+ * Exports from callback.c.
+ *
+ * This provides a method of queuing function calls to be run at the
+ * earliest convenience from the top-level event loop. Use it if
+ * you're deep in a nested chain of calls and want to trigger an
+ * action which will probably lead to your function being re-entered
+ * recursively if you just call the initiating function the normal
+ * way.
+ *
+ * Most front ends run the queued callbacks by simply calling
+ * run_toplevel_callbacks() after handling each event in their
+ * top-level event loop. However, if a front end doesn't have control
+ * over its own event loop (e.g. because it's using GTK) then it can
+ * instead request notifications when a callback is available, so that
+ * it knows to ask its delegate event loop to do the same thing. Also,
+ * if a front end needs to know whether a callback is pending without
+ * actually running it (e.g. so as to put a zero timeout on a select()
+ * call) then it can call toplevel_callback_pending(), which will
+ * return true if at least one callback is in the queue.
+ */
+typedef void (*toplevel_callback_fn_t)(void *ctx);
+void queue_toplevel_callback(toplevel_callback_fn_t fn, void *ctx);
+void run_toplevel_callbacks(void);
+int toplevel_callback_pending(void);
+
+typedef void (*toplevel_callback_notify_fn_t)(void *frontend);
+void request_callback_notifications(toplevel_callback_notify_fn_t notify,
+                                    void *frontend);
 
 /*
  * Define no-op macros for the jump list functions, on platforms that

@@ -74,10 +74,6 @@ void nonfatal(char *p, ...)
     va_end(ap);
     fputc('\n', stderr);
     postmsg(&cf);
-    if (logctx) {
-        log_free(logctx);
-        logctx = NULL;
-    }
 }
 void connection_fatal(void *frontend, char *p, ...)
 {
@@ -979,6 +975,7 @@ int main(int argc, char **argv)
 	int maxfd;
 	int rwx;
 	int ret;
+        unsigned long next;
 
 	FD_ZERO(&rset);
 	FD_ZERO(&wset);
@@ -1033,12 +1030,17 @@ int main(int argc, char **argv)
 		FD_SET_MAX(fd, maxfd, xset);
 	}
 
-	do {
-	    unsigned long next, then;
-	    long ticks;
-	    struct timeval tv, *ptv;
+        if (toplevel_callback_pending()) {
+            struct timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = 0;
+            ret = select(maxfd, &rset, &wset, &xset, &tv);
+        } else if (run_timers(now, &next)) {
+            do {
+                unsigned long then;
+                long ticks;
+                struct timeval tv;
 
-	    if (run_timers(now, &next)) {
 		then = now;
 		now = GETTICKCOUNT();
 		if (now - then > next - then)
@@ -1047,16 +1049,15 @@ int main(int argc, char **argv)
 		    ticks = next - now;
 		tv.tv_sec = ticks / 1000;
 		tv.tv_usec = ticks % 1000 * 1000;
-		ptv = &tv;
-	    } else {
-		ptv = NULL;
-	    }
-	    ret = select(maxfd, &rset, &wset, &xset, ptv);
-	    if (ret == 0)
-		now = next;
-	    else
-		now = GETTICKCOUNT();
-	} while (ret < 0 && errno == EINTR);
+                ret = select(maxfd, &rset, &wset, &xset, &tv);
+                if (ret == 0)
+                    now = next;
+                else
+                    now = GETTICKCOUNT();
+            } while (ret < 0 && errno == EINTR);
+        } else {
+            ret = select(maxfd, &rset, &wset, &xset, NULL);
+        }
 
 	if (ret < 0) {
 	    perror("select");
@@ -1117,7 +1118,7 @@ int main(int argc, char **argv)
 	    back->unthrottle(backhandle, try_output(TRUE));
 	}
 
-        net_pending_errors();
+        run_toplevel_callbacks();
 
 	if ((!connopen || !back->connected(backhandle)) &&
 	    bufchain_size(&stdout_data) == 0 &&

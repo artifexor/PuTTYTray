@@ -832,6 +832,7 @@ struct ssh_tag {
     void *cs_comp_ctx, *sc_comp_ctx;
     const struct ssh_kex *kex;
     const struct ssh_signkey *hostkey;
+    char *hostkey_str; /* string representation, for easy checking in rekeys */
     unsigned char v2_session_id[SSH2_KEX_MAX_HASH_LEN];
     int v2_session_id_len;
     void *kex_ctx;
@@ -4301,7 +4302,7 @@ void sshfwd_write_eof(struct ssh_channel *c)
     ssh_channel_try_eof(c);
 }
 
-void sshfwd_unclean_close(struct ssh_channel *c)
+void sshfwd_unclean_close(struct ssh_channel *c, const char *err)
 {
     Ssh ssh = c->ssh;
 
@@ -4311,15 +4312,17 @@ void sshfwd_unclean_close(struct ssh_channel *c)
     switch (c->type) {
       case CHAN_X11:
         x11_close(c->u.x11.s);
-        logevent("Forwarded X11 connection terminated due to local error");
+        logeventf(ssh, "Forwarded X11 connection terminated due to local "
+                  "error: %s", err);
         break;
       case CHAN_SOCKDATA:
       case CHAN_SOCKDATA_DORMANT:
         pfd_close(c->u.pfd.s);
-        logevent("Forwarded port closed due to local error");
+        logeventf(ssh, "Forwarded port closed due to local error: %s", err);
         break;
     }
     c->type = CHAN_ZOMBIE;
+    c->pending_eof = FALSE;   /* this will confuse a zombie channel */
 
     ssh2_channel_check_close(c);
 }
@@ -5668,12 +5671,28 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 	    }
 	}
 	/* List server host key algorithms. */
-	ssh2_pkt_addstring_start(s->pktout);
-	for (i = 0; i < lenof(hostkey_algs); i++) {
-	    ssh2_pkt_addstring_str(s->pktout, hostkey_algs[i]->name);
-	    if (i < lenof(hostkey_algs) - 1)
-		ssh2_pkt_addstring_str(s->pktout, ",");
-	}
+        if (!s->got_session_id) {
+            /*
+             * In the first key exchange, we list all the algorithms
+             * we're prepared to cope with.
+             */
+            ssh2_pkt_addstring_start(s->pktout);
+            for (i = 0; i < lenof(hostkey_algs); i++) {
+                ssh2_pkt_addstring_str(s->pktout, hostkey_algs[i]->name);
+                if (i < lenof(hostkey_algs) - 1)
+                    ssh2_pkt_addstring_str(s->pktout, ",");
+            }
+        } else {
+            /*
+             * In subsequent key exchanges, we list only the kex
+             * algorithm that was selected in the first key exchange,
+             * so that we keep getting the same host key and hence
+             * don't have to interrupt the user's session to ask for
+             * reverification.
+             */
+            assert(ssh->kex);
+            ssh2_pkt_addstring(s->pktout, ssh->hostkey->name);
+        }
 	/* List encryption algorithms (client->server then server->client). */
 	for (k = 0; k < 2; k++) {
 	    ssh2_pkt_addstring_start(s->pktout);
@@ -6225,41 +6244,57 @@ static void do_ssh2_transport(Ssh ssh, void *vin, int inlen,
 	crStopV;
     }
 
-    /*
-     * Authenticate remote host: verify host key. (We've already
-     * checked the signature of the exchange hash.)
-     */
     s->keystr = ssh->hostkey->fmtkey(s->hkey);
-    s->fingerprint = ssh->hostkey->fingerprint(s->hkey);
-    ssh_set_frozen(ssh, 1);
-    s->dlgret = verify_ssh_host_key(ssh->frontend,
-                                    ssh->savedhost, ssh->savedport,
-                                    ssh->hostkey->keytype, s->keystr,
-				    s->fingerprint,
-                                    ssh_dialog_callback, ssh);
-    if (s->dlgret < 0) {
-        do {
-            crReturnV;
-            if (pktin) {
-                bombout(("Unexpected data from server while waiting"
-                         " for user host key response"));
+    if (!s->got_session_id) {
+        /*
+         * Authenticate remote host: verify host key. (We've already
+         * checked the signature of the exchange hash.)
+         */
+        s->fingerprint = ssh->hostkey->fingerprint(s->hkey);
+        ssh_set_frozen(ssh, 1);
+        s->dlgret = verify_ssh_host_key(ssh->frontend,
+                                        ssh->savedhost, ssh->savedport,
+                                        ssh->hostkey->keytype, s->keystr,
+                                        s->fingerprint,
+                                        ssh_dialog_callback, ssh);
+        if (s->dlgret < 0) {
+            do {
+                crReturnV;
+                if (pktin) {
+                    bombout(("Unexpected data from server while waiting"
+                             " for user host key response"));
                     crStopV;
-            }
-        } while (pktin || inlen > 0);
-        s->dlgret = ssh->user_response;
+                }
+            } while (pktin || inlen > 0);
+            s->dlgret = ssh->user_response;
+        }
+        ssh_set_frozen(ssh, 0);
+        if (s->dlgret == 0) {
+            ssh_disconnect(ssh, "User aborted at host key verification", NULL,
+                           0, TRUE);
+            crStopV;
+        }
+        logevent("Host key fingerprint is:");
+        logevent(s->fingerprint);
+        sfree(s->fingerprint);
+        /*
+         * Save this host key, to check against the one presented in
+         * subsequent rekeys.
+         */
+        ssh->hostkey_str = s->keystr;
+    } else {
+        /*
+         * In a rekey, we never present an interactive host key
+         * verification request to the user. Instead, we simply
+         * enforce that the key we're seeing this time is identical to
+         * the one we saw before.
+         */
+        if (strcmp(ssh->hostkey_str, s->keystr)) {
+            bombout(("Host key was different in repeat key exchange"));
+            crStopV;
+        }
+        sfree(s->keystr);
     }
-    ssh_set_frozen(ssh, 0);
-    if (s->dlgret == 0) {
-	ssh_disconnect(ssh, "User aborted at host key verification", NULL,
-		       0, TRUE);
-        crStopV;
-    }
-    if (!s->got_session_id) {     /* don't bother logging this in rekeys */
-	logevent("Host key fingerprint is:");
-	logevent(s->fingerprint);
-    }
-    sfree(s->fingerprint);
-    sfree(s->keystr);
     ssh->hostkey->freekey(s->hkey);
 
     /*
@@ -6985,6 +7020,15 @@ static void ssh2_channel_check_close(struct ssh_channel *c)
     Ssh ssh = c->ssh;
     struct Packet *pktout;
 
+    if (c->halfopen) {
+        /*
+         * If we've sent out our own CHANNEL_OPEN but not yet seen
+         * either OPEN_CONFIRMATION or OPEN_FAILURE in response, then
+         * it's too early to be sending close messages of any kind.
+         */
+        return;
+    }
+
     if ((!((CLOSES_SENT_EOF | CLOSES_RCVD_EOF) & ~c->closes) ||
 	 c->type == CHAN_ZOMBIE) &&
 	!c->v.v2.chanreq_head &&
@@ -7126,17 +7170,42 @@ static void ssh2_msg_channel_open_confirmation(Ssh ssh, struct Packet *pktin)
     c = ssh2_channel_msg(ssh, pktin);
     if (!c)
 	return;
-    if (c->type != CHAN_SOCKDATA_DORMANT)
-	return;			       /* dunno why they're confirming this */
+    assert(c->halfopen); /* ssh2_channel_msg will have enforced this */
     c->remoteid = ssh_pkt_getuint32(pktin);
     c->halfopen = FALSE;
-    c->type = CHAN_SOCKDATA;
     c->v.v2.remwindow = ssh_pkt_getuint32(pktin);
     c->v.v2.remmaxpkt = ssh_pkt_getuint32(pktin);
-    if (c->u.pfd.s)
-	pfd_confirm(c->u.pfd.s);
+
+    if (c->type == CHAN_SOCKDATA_DORMANT) {
+        c->type = CHAN_SOCKDATA;
+        if (c->u.pfd.s)
+            pfd_confirm(c->u.pfd.s);
+    } else if (c->type == CHAN_ZOMBIE) {
+        /*
+         * This case can occur if a local socket error occurred
+         * between us sending out CHANNEL_OPEN and receiving
+         * OPEN_CONFIRMATION. In this case, all we can do is
+         * immediately initiate close proceedings now that we know the
+         * server's id to put in the close message.
+         */
+        ssh2_channel_check_close(c);
+    } else {
+        /*
+         * We never expect to receive OPEN_CONFIRMATION for any
+         * *other* channel type (since only local-to-remote port
+         * forwardings cause us to send CHANNEL_OPEN after the main
+         * channel is live - all other auxiliary channel types are
+         * initiated from the server end). It's safe to enforce this
+         * by assertion rather than by ssh_disconnect, because the
+         * real point is that we never constructed a half-open channel
+         * structure in the first place with any type other than the
+         * above.
+         */
+        assert(!"Funny channel type in ssh2_msg_channel_open_confirmation");
+    }
+
     if (c->pending_eof)
-        ssh_channel_try_eof(c);
+        ssh_channel_try_eof(c);        /* in case we had a pending EOF */
 }
 
 static void ssh2_msg_channel_open_failure(Ssh ssh, struct Packet *pktin)
@@ -7152,20 +7221,41 @@ static void ssh2_msg_channel_open_failure(Ssh ssh, struct Packet *pktin)
     char *reason_string;
     int reason_length;
     struct ssh_channel *c;
+
     c = ssh2_channel_msg(ssh, pktin);
     if (!c)
 	return;
-    if (c->type != CHAN_SOCKDATA_DORMANT)
-	return;			       /* dunno why they're failing this */
+    assert(c->halfopen); /* ssh2_channel_msg will have enforced this */
 
-    reason_code = ssh_pkt_getuint32(pktin);
-    if (reason_code >= lenof(reasons))
-	reason_code = 0; /* ensure reasons[reason_code] in range */
-    ssh_pkt_getstring(pktin, &reason_string, &reason_length);
-    logeventf(ssh, "Forwarded connection refused by server: %s [%.*s]",
-	      reasons[reason_code], reason_length, reason_string);
+    if (c->type == CHAN_SOCKDATA_DORMANT) {
+        reason_code = ssh_pkt_getuint32(pktin);
+        if (reason_code >= lenof(reasons))
+            reason_code = 0; /* ensure reasons[reason_code] in range */
+        ssh_pkt_getstring(pktin, &reason_string, &reason_length);
+        logeventf(ssh, "Forwarded connection refused by server: %s [%.*s]",
+                  reasons[reason_code], reason_length, reason_string);
 
-    pfd_close(c->u.pfd.s);
+        pfd_close(c->u.pfd.s);
+    } else if (c->type == CHAN_ZOMBIE) {
+        /*
+         * This case can occur if a local socket error occurred
+         * between us sending out CHANNEL_OPEN and receiving
+         * OPEN_FAILURE. In this case, we need do nothing except allow
+         * the code below to throw the half-open channel away.
+         */
+    } else {
+        /*
+         * We never expect to receive OPEN_FAILURE for any *other*
+         * channel type (since only local-to-remote port forwardings
+         * cause us to send CHANNEL_OPEN after the main channel is
+         * live - all other auxiliary channel types are initiated from
+         * the server end). It's safe to enforce this by assertion
+         * rather than by ssh_disconnect, because the real point is
+         * that we never constructed a half-open channel structure in
+         * the first place with any type other than the above.
+         */
+        assert(!"Funny channel type in ssh2_msg_channel_open_failure");
+    }
 
     del234(ssh->channels, c);
     sfree(c);
@@ -7457,6 +7547,7 @@ static void ssh2_msg_channel_open(Ssh ssh, struct Packet *pktin)
 	else {
 	    c->type = CHAN_AGENT;	/* identify channel type */
 	    c->u.a.lensofar = 0;
+            c->u.a.message = NULL;
             c->u.a.outstanding_requests = 0;
 	}
     } else {
@@ -9645,6 +9736,7 @@ static const char *ssh_init(void *frontend_handle, void **backend_handle,
     ssh->kex = NULL;
     ssh->kex_ctx = NULL;
     ssh->hostkey = NULL;
+    ssh->hostkey_str = NULL;
     ssh->exitcode = -1;
     ssh->close_expected = FALSE;
     ssh->clean_exit = FALSE;
@@ -9822,6 +9914,7 @@ static void ssh_free(void *handle)
     sfree(ssh->v_c);
     sfree(ssh->v_s);
     sfree(ssh->fullhostname);
+    sfree(ssh->hostkey_str);
     if (ssh->crcda_ctx) {
 	crcda_free_context(ssh->crcda_ctx);
 	ssh->crcda_ctx = NULL;
